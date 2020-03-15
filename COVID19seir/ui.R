@@ -5,7 +5,7 @@ library(plotly)
 fluidPage(
   titlePanel("Modeling COVID-19 Spread vs Healthcare Capacity"),
   hr(),
-  p(div(HTML("Disclaimer: This simulation is for educational purposes only and is not intended to be a tool for decision-making. There are many uncertainties and debates about the details of COVID-19 infection and transmission and there are many limitations to this simple model."))),
+  p(div(HTML("Disclaimer: This simulation is for research and educational purposes only and is not intended to be a tool for decision-making. There are many uncertainties and debates about the details of COVID-19 infection and transmission and there are many limitations to this simple model. This work is licensed under a <a href=https://creativecommons.org/licenses/by-sa/4.0/> Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) License </a>"))),
   
   
   sidebarLayout(
@@ -56,9 +56,9 @@ fluidPage(
                               plotlyOutput("plot0"),
                               br(),
                               radioButtons("yscale", "Y axis scale:",
-                                           choices = list("Linear" = "linear","Log10" = "log")),
+                                           choices = list("Linear" = "linear","Log10" = "log"),inline=TRUE),
                               p(HTML("")),
-                              p(HTML("<b>User instructions:</b> The graph shows the expected infection levels per N individuals in a population, starting from 1 out of N individuals being infected, where N is the user-defined population size denominator. The population size and the parameter values used to simulate the spread of COVID-19 can be specified through the sliders located in the left-hand panel. Default slider values are equal to values taken from the literature. To reset default values, click on the <em>Reset all</em> button located on the bottom of the panel. To zoom in a particular curve, click its name in the plot legend. A description of the model and the parameters is in the tab Model Description."))
+                              p(HTML("<b>User instructions:</b> The graph shows the expected numbers of individuals over time who are infected, recovered, susceptible, or dead over time. Infected individuals first pass through an exposed/incubation phase where they are asymptomatic and not infectious, and then move into a symptomatic and infections stage classified by the clinical status of infection (mild, severe, or critical). A more detailed description of the model is provided in the Model Description tab. The population size, initial condition, and parameter values used to simulate the spread of infection can be specified through the sliders located in the left-hand panel. Default slider values are equal to estimates taken from the literature (see Sources tab). To reset default values, click on the <em>Reset all</em> button located on the bottom of the panel. The plot is interactive: Hover over it to get values, double-click a curve in the legend to isolate it, or single-click to remove it. Dragging over a range allows zooming."))
                             )
                           )
                  ),
@@ -67,12 +67,12 @@ fluidPage(
                           fluidPage(
                             fluidRow(
                               h3("Reduction in predicted COVID-19 after intervention"),
-                              p(HTML("Simulate the change in the time course of COVID-10 cases after applying an intervention to reduce transmission")),
+                              p(HTML("Simulate the change in the time course of COVID-10 cases after applying an intervention")),
                               plotlyOutput("plotInt"),
                               br(),
                               br(),
                               radioButtons("yscaleInt", "Y axis scale:",
-                                           choices = list("Linear" = "linear","Log10" = "log")),
+                                           choices = list("Linear" = "linear","Log10" = "log"),inline=TRUE),
                               wellPanel(
                                 h4(div(HTML("<em>Set intervention parameters...</em>"))),
                                 selectInput("VarShowInt",
@@ -82,12 +82,14 @@ fluidPage(
                                 ),
                                 numericInput("Tint","Intervention start time (days):",value = 0, min = 0, step = 10),
                                 numericInput("Tend","Intervention end time (days):",value = 300, min = 0, step = 10),
-                                p(HTML("<b>Intervention type: reducing transmission.</b> For example via social distancing or isolation of infected individuals. Transmission from each of the clinical stages of infection can be differntially reduced, if the user has chosen parameters such that these stages contribute to transmission.")),
+                                p(HTML("<b>Intervention type: reducing transmission, </b> for example via social distancing or quarantining in the community (for those with mild infection) or better isolation and personal-protective wear in hospitals (for those with more severe infection). Transmission from each of the clinical stages of infection can only be reduced if the user has chosen parameters such that these stages contribute to transmission.")),
                                 sliderInput("s1", "Reduction in transmission from mild infections ", 0, 100, 30, pre="%",step=10, animate=TRUE),
                                 sliderInput("s2", "Reduction in transmission from severe infections", 0, 100, 0, pre="%",step=10, animate=TRUE),
-                                sliderInput("s3", "Reduction in transmission rate from critical infections", 0, 100, 0, pre="%",step=10, animate=TRUE)
+                                sliderInput("s3", "Reduction in transmission rate from critical infections", 0, 100, 0, pre="%",step=10, animate=TRUE),
+                                radioButtons("RoundOne", "Round values to nearest integar post-intervention?",
+                                             choices = list("True" = "True","False" = "False"),inline=TRUE),
                               ),
-                              p(HTML("<b>User instructions:</b> The graph shows the expected infection levels per N individuals in a population, starting from 1 out of N individuals being infected, where N is the user-defined population size denominator. The population size and the parameter values used to simulate the spread of COVID-19 can be specified through the sliders located in the left-hand panel. Default slider values are equal to values taken from the literature. To reset default values, click on the <em>Reset all</em> button located on the bottom of the panel. To zoom in a particular curve, click its name in the plot legend. A description of the model and the parameters is in the tab Model Description."))
+                              p(HTML("<b>User instructions:</b> The graph shows the expected numbers of individuals over time who are infected, recovered, susceptible, or dead over time, with and without an intervention. Infected individuals first pass through an exposed/incubation phase where they are asymptomatic and not infectious, and then move into a symptomatic and infections stage classified by the clinical status of infection (mild, severe, or critical). A more detailed description of the model is provided in the Model Description tab. The population size, initial condition, and parameter values used to simulate the spread of infection can be specified through the sliders located in the left-hand panel. Default slider values are equal to estimates taken from the literature (see Sources tab). The strength and timing of the intervention is controlled by the sliders below the plot. To reset default values, click on the <em>Reset all</em> button located on the bottom of the panel. The plot is interactive: Hover over it to get values, double-click a curve in the legend to isolate it, or single-click to remove it. Dragging over a range allows zooming."))
                             )
                           )
                  ),
@@ -96,12 +98,45 @@ fluidPage(
                           fluidPage(
                             fluidRow(
                               h3("COVID-19 Cases vs Healthcare Capacity"),
-                              p(HTML("Simulate predicted COVID-19 cases vs the capacity of the healthcare system to care for them. The care required depends on disease severity - individuals with `severe' infection require hospitalization and individuals with 'critical' infection often require ICU-level care and mechanical ventilation. ")),
+                              p(HTML("Simulate predicted COVID-19 cases vs the capacity of the healthcare system to care for them. The care required depends on disease severity - individuals with `severe' infection require hospitalization and individuals with 'critical' infection often require ICU-level care and mechanical ventilation.")),
                               plotlyOutput("plotCap"),
                               br(),
                               br(),
                               radioButtons("yscaleCap", "Y axis scale:",
-                                           choices = list("Linear" = "linear","Log10" = "log")),
+                                           choices = list("Linear" = "linear","Log10" = "log"),inline=TRUE),
+                              wellPanel(
+                                h4(div(HTML("<em>Set healthcare capacity...</em>"))),
+                                p(HTML(" The default values are for the U.S. and details of their sources are given in the Sources tab")),
+                                fluidRow(
+                                  p(HTML(" <b> All hospital beds: </b>")),
+                                  column(width = 6,
+                                         uiOutput("HospBedper")
+                                  ),
+                                  column(width = 6,
+                                         uiOutput("HospBedOcc")
+                                  ),
+                                  p(HTML(" <b> ICU beds: </b>")),
+                                  column(width = 6,
+                                         uiOutput("ICUBedper")
+                                  ),
+                                  column(width = 6,
+                                         uiOutput("ICUBedOcc")
+                                  ),
+                                  column(width = 12,
+                                         uiOutput("IncFluOcc")
+                                  ),
+                                  p(HTML(" <b> Mechanical ventilators: </b>")),
+                                  column(width = 4,
+                                         uiOutput("ConvVentCap")
+                                  ),
+                                  column(width = 4,
+                                         uiOutput("ContVentCap")
+                                  ),
+                                  column(width = 4,
+                                         uiOutput("CrisisVentCap")
+                                  )
+                                ),
+                                ),
                               wellPanel(
                                 h4(div(HTML("<em>Set intervention parameters...</em>"))),
                                 selectInput("VarShowCap",
@@ -114,19 +149,15 @@ fluidPage(
                                 p(HTML("<b>Intervention type: reducing transmission.</b> For example via social distancing or isolation of infected individuals. Transmission from each of the clinical stages of infection can be differntially reduced, if the user has chosen parameters such that these stages contribute to transmission.")),
                                 sliderInput("s1C", "Reduction in transmission rate (mild infections) ", 0, 100, 30, pre="%",step=10, animate=TRUE),
                                 sliderInput("s2C", "Reduction in transmission rate (severe infections) ", 0, 100, 0, pre="%",step=10, animate=TRUE),
-                                sliderInput("s3C", "Reduction in transmission rate (critical infections) ", 0, 100, 0, pre="%",step=10, animate=TRUE)
+                                sliderInput("s3C", "Reduction in transmission rate (critical infections) ", 0, 100, 0, pre="%",step=10, animate=TRUE),
+                                radioButtons("RoundOneCap", "Round values to nearest integar post-intervention?",
+                                             choices = list("True" = "True","False" = "False"), inline=TRUE),
                               ),
-                              p(HTML("<b>User instructions:</b> The graph shows the expected infection levels per N individuals in a population, starting from 1 out of N individuals being infected, where N is the user-defined population size denominator. The population size and the parameter values used to simulate the spread of COVID-19 can be specified through the sliders located in the left-hand panel. Default slider values are equal to values taken from the literature. To reset default values, click on the <em>Reset all</em> button located on the bottom of the panel. To zoom in a particular curve, click its name in the plot legend. A description of the model and the parameters is in the tab Model Description."))
+                              p(HTML("<b>User instructions:</b> The graph shows the expected numbers of individuals over time who are infected, recovered, susceptible, or dead over time, with and without an intervention. Infected individuals first pass through an exposed/incubation phase where they are asymptomatic and not infectious, and then move into a symptomatic and infections stage classified by the clinical status of infection (mild, severe, or critical). A more detailed description of the model is provided in the Model Description tab. The population size, initial condition, and parameter values used to simulate the spread of infection can be specified through the sliders located in the left-hand panel. Default slider values are equal to estimates taken from the literature (see Sources tab). The strength and timing of the intervention is controlled by the sliders below the plot. To reset default values, click on the <em>Reset all</em> button located on the bottom of the panel. The plot is interactive: Hover over it to get values, double-click a curve in the legend to isolate it, or single-click to remove it. Dragging over a range allows zooming."))
                             )
                           )
                  ),
-                 
-                 tabPanel("Code",
-                          fluidPage(
-                            br(),
-                            uiOutput("tab")
-                            
-                          )),
+
                  tabPanel("Model Description", br(),
                           fluidRow(column(12,
                                           plotOutput("plot4", height=200),
@@ -144,6 +175,13 @@ fluidPage(
                           fluidPage(
                             br(),
                             uiOutput("parameterDesc")
+                          )),
+                 
+                 tabPanel("Code",
+                          fluidPage(
+                            br(),
+                            uiOutput("tab")
+                            
                           ))
                  
       )

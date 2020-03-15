@@ -107,6 +107,12 @@ R_0  = N\frac{\beta_1}{p_1+\gamma_1} + \frac{p_1}{p_1 + \gamma_1} \left( \frac{N
  = N\frac{\beta_1}{p_1+\gamma_1} \left(1 + \frac{p_1}{p_2 + \gamma_2}\frac{\beta_2}{\beta_1} \left( 1 + \frac{p_2}{\mu + \gamma_3} \frac{\beta_3}{\beta_2} \right) \right)
 \end{equation}
 
+Calculations using the next generation matrix give the same results. 
+
+### Early epidemic growth rate
+
+Early in the epidemic, before susceptibles are depleted, the epidemic grows at an exponential rate $r$, which can also be described with doubling time T$_2$=ln(2)$/r$. During this phase all infected classes grow at the same rate.
+
 ### Assumptions
 
 * This model is formulated as a system of differential equations and the output therefore represents the expected values of each quantity. It does not take into account stochastic events or report the expected variance in the variables, which can be large. 

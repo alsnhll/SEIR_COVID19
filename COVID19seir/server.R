@@ -151,6 +151,19 @@ SetHospCapacity=function(){
   return(capParams)
 }
 
+SetHospCapacitySliders=function(input){
+  
+  AvailHospBeds=input$HospBedper*(100-input$HospBedOcc*(1+input$IncFluOcc/100))/100 #Available hospital beds per 1000 ppl in US based on total beds and occupancy
+  AvailICUBeds=input$ICUBedper*(100-input$ICUBedOcc*(1+input$IncFluOcc/100))/100 #Available ICU beds per 1000 ppl in US, based on total beds and occupancy. Only counts adult not neonatal/pediatric beds
+  ConvVentCap=input$ConvMVCap #Estimated excess # of patients who could be ventilated in US (per 1000 ppl) using conventional protocols
+  ContVentCap=input$ContMVCap #Estimated excess # of patients who could be ventilated in US (per 1000 ppl) using contingency protocols
+  CrisisVentCap=input$CrisisMVCap #Estimated excess # of patients who could be ventilated in US (per 1000 ppl) using crisis protocols
+  
+  capParams=c("AvailHospBeds"=AvailHospBeds,"AvailICUBeds"=AvailICUBeds,"ConvVentCap"=ConvVentCap,"ContVentCap"=ContVentCap,"CrisisVentCap"=CrisisVentCap)
+
+    return(capParams)
+}
+
 function(input, output, session) {
   observeEvent(input$reset,{
     updateSliderInput(session,'IncubPeriod',value = 5)
@@ -165,19 +178,6 @@ function(input, output, session) {
     updateSliderInput(session,'b31',value = 0)
     updateSliderInput(session,'LogN',value = 5)
     updateSliderInput(session,'Tmax',value = 300)
-  })
-  #FIX
-  observeEvent(input$reset2,{
-    updateSliderInput(session,'canc',value = 800)
-    updateSliderInput(session,'cmov',value = 400)
-    updateSliderInput(session,'cinf',value = 200)
-    updateSliderInput(session,'bp2',value = 0.05)
-    updateSliderInput(session,'di2',value = 0.5)
-    updateSliderInput(session,'l2',value = 6)
-    updateSliderInput(session,'k2',value = 0.3)
-    updateSliderInput(session,'b2',value = 1.3)
-    updateSliderInput(session,'i2',value = 0)
-    updateSliderInput(session,'e2',value = 0.05)
   })
   
   # Plot timecourse of all variables
@@ -221,8 +221,8 @@ function(input, output, session) {
     p=plot_ly(data = out, x=~time, y=~value, color=~variableLegend, type='scatter', mode='lines')
 
     p=layout(p,xaxis=list(title="Time since introduction (days)"),yaxis=list(title=paste("Number per",formatC(N,big.mark=",",format="f",digits=0),"people"),type=input$yscale),
-             annotations=list(text=HTML(paste("R", tags$sub(0),'=',format(Ro,nsmall=1)," , r=", format(r,digits=2)," per day, <br> Doubling Time = ",format(DoublingTime,digits=1)," days")),
-                              showarrow=FALSE,xref="paper",xanchor="right",x=1, yref="paper", yanchor="center",y=0.5))
+             annotations=list(text=HTML(paste("R", tags$sub(0),'=',format(Ro,nsmall=1)," <br>r =", format(r,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTime,digits=1)," days")),
+                              showarrow=FALSE,xref="paper",xanchor="left",x=1.03, yref="paper", yanchor="center",y=0.4, align="left"))
 
   })
   
@@ -244,13 +244,7 @@ function(input, output, session) {
     Ro=GetRo_SEIR(pModel,N)
     
     out.df=GetSpread_SEIR(pModel,N,Tmax,y0)
-    out.df2=rename(out.df, c(S="Susceptible",E="Exposed", I1="Infected.Mild", I2="Infected.Severe", 
-                             I3="Infected.Critical", R="Recovered", D="Dead"))
     out=melt(out.df,id="time")
-    out2=melt(out.df2,id="time")
-    out$variableName=out2$variable
-    out$variableLegend = paste0(out$variableName,' (',out$variable,')')
-    out$variableLegend = factor(out$variableLegend, levels = unique(out[["variableLegend"]]))
 
     #get r value
     V="E" #variable to calculate r for
@@ -307,75 +301,94 @@ function(input, output, session) {
       #Set initial conditions and time interval
       #Round all numbers to lowest intergar, so if less than 1, go to zero
       iEnd=nrow(outInt.df)
-      S0 = floor(outInt.df[iEnd,"S"])
-      E0 = floor(outInt.df[iEnd,"E"])
-      I10 = floor(outInt.df[iEnd,"I1"])
-      I20 = floor(outInt.df[iEnd,"I2"])
-      I30 = floor(outInt.df[iEnd,"I3"])
-      D0 = floor(outInt.df[iEnd,"D"])
-      R0 = floor(outInt.df[iEnd,"R"])
+      
+      if(input$RoundOne=="True"){
+      S0 = round(outInt.df[iEnd,"S"])
+      E0 = round(outInt.df[iEnd,"E"])
+      I10 = round(outInt.df[iEnd,"I1"])
+      I20 = round(outInt.df[iEnd,"I2"])
+      I30 = round(outInt.df[iEnd,"I3"])
+      D0 = round(outInt.df[iEnd,"D"])
+      R0 = round(outInt.df[iEnd,"R"])
+      }else{
+        S0 = outInt.df[iEnd,"S"]
+        E0 = outInt.df[iEnd,"E"]
+        I10 = outInt.df[iEnd,"I1"]
+        I20 = outInt.df[iEnd,"I2"]
+        I30 = outInt.df[iEnd,"I3"]
+        D0 = outInt.df[iEnd,"D"]
+        R0 = outInt.df[iEnd,"R"]
+      }
+    
       y0 = c(S=S0, E=E0, I1=I10, I2=I20, I3=I30, R=R0, D=D0)
       
       #run with parameters back to baseline
       outIntOff.df=GetSpread_SEIR(pModel,N,Trun2,y0)
       outIntOff.df$time=outIntOff.df$time+Tend
-      
+
       #combine vectors
       outInt.df=rbind(outInt.df,outIntOff.df)
     }
     
-    
-    outInt.df2=rename(outInt.df, c(S="Susceptible",E="Exposed", I1="Infected.Mild", I2="Infected.Severe", 
-                             I3="Infected.Critical", R="Recovered", D="Dead"))
-    outInt=melt(outInt.df,id="time")
-    outInt2=melt(outInt.df2,id="time")
-    outInt$variableName=outInt2$variable
-    outInt$variableLegend = paste0(outInt$variableName,' (',outInt$variable,')')
-    outInt$variableLegend = factor(outInt$variableLegend, levels = unique(outInt[["variableLegend"]]))
-    
-    #combine both baseline and intervention into one dataset
-    outInt$Intervention="Intervention"
-    out$Intervention="Baseline"
-    outAll=rbind(out,outInt)
-    outAll$Intervention=factor(outAll$Intervention)
-    
+
     if(input$VarShowInt=="Inf"){
-      outAll.sub=subset(outAll, variable =="E" |variable =="I1" | variable =="I2" | variable =="I3", select=c("time","value","variable","Intervention"))
-      outAll.sub=aggregate(value~time+Intervention,outAll.sub,sum)
-      outAll.sub=outAll.sub[with(outAll.sub,order(Intervention,time)),]
+      
+      out.df$value=rowSums(out.df[,c("E", "I1","I2","I3")]) # create observed variable
+      outInt.df$value=rowSums(outInt.df[,c("E", "I1","I2","I3")])
+      
     }else if(input$VarShowInt=="Cases"){
-      outAll.sub=subset(outAll, variable =="I1" | variable =="I2" | variable =="I3", select=c("time","value","variable","Intervention"))
-      outAll.sub=aggregate(value~time+Intervention,outAll.sub,sum)
-      outAll.sub=outAll.sub[with(outAll.sub,order(Intervention,time)),]
+      print("in Cases")
+      print(nrow(out.df))
+      print(nrow(outInt.df))
+      out.df$value=rowSums(out.df[,c("I1","I2","I3")]) # create observed variable
+      outInt.df$value=rowSums(outInt.df[,c("I1","I2","I3")])
+      
     }else if(input$VarShowInt=="Hosp"){
-      outAll.sub=subset(outAll, variable =="I1" | variable =="I2", select=c("time","value","variable","Intervention"))
-      outAll.sub=aggregate(value~time+Intervention,outAll.sub,sum)
-      outAll.sub=outAll.sub[with(outAll.sub,order(Intervention,time)),]
+      out.df$value=rowSums(out.df[,c("I2","I3")]) # create observed variable
+      outInt.df$value=rowSums(outInt.df[,c("I2","I3")])
+      out.df$Intervention="Baseline" # add intervention column
 
     }else{
-      outAll.sub=subset(outAll,variable==input$VarShowInt)
+
+      out.df$value=out.df[,input$VarShowInt] # create observed variable
+      outInt.df$value=outInt.df[,input$VarShowInt]
+      
     }
+    out.df$Intervention="Baseline" # add intervention column
+    outInt.df$Intervention="Intervention"
+    outAll.df=rbind(out.df,outInt.df) #combine baseline and intervention
+    outAll.sub=subset(outAll.df, select=c("time","value","Intervention")) # choose only case column
+    outAll.sub$Intervention=factor(outAll.sub$Intervention) # set intervention as factor
+    outAll.sub=outAll.sub[with(outAll.sub,order(Intervention,time)),]
     
-    #get r value
-    tpeak=outInt.df[which.max(select(outInt.df,"time",V)[,2]),"time"];
+    #get r value for intervention
+    #note, to do this need to simulate from beginning, just up to peak of epidemic without intervention
     
-    t2=tpeak/4
-    t1=tpeak/8
-    r.out=Getr_SEIR(outInt,t1,t2,V)
+    E0=input$InitInf
+    S0 = N-E0
+    y0 = c(S=S0, E=E0, I1=0, I2=0, I3=0, R=0, D=0)
+    outIntZero.df=GetSpread_SEIR(pModelInt,N,tpeak,y0)
+    outIntZero=melt(outIntZero.df,id="time")
+    
+    tpeakInt=outIntZero.df[which.max(select(outIntZero.df,"time",V)[,2]),"time"];
+    
+    t2=tpeakInt/4
+    t1=tpeakInt/8
+    r.out=Getr_SEIR(outIntZero,t1,t2,V)
     rInt=r.out$r
     DoublingTimeInt=r.out$DoublingTime
     
     p=plot_ly(data = outAll.sub, x=~time, y=~value, color=~Intervention, type='scatter', mode='lines',colors=c("#a50f15","#fc9272"))
     
     p=layout(p,xaxis=list(title="Time since introduction (days)"),yaxis=list(title=paste("Number per", formatC(N,big.mark=",",format="f",digits=0),"people"),type=input$yscaleInt),
-             annotations=list(text=HTML(paste("Baseline: <br> R", tags$sub(0),'=',format(Ro,nsmall=1)," , r=", format(r,digits=2)," per day, <br> Doubling Time = ",format(DoublingTime,digits=1)," days <br> Intervention: <br> R", tags$sub(0),'=',RoInt," , r=", format(rInt,digits=2)," per day, <br> Doubling Time = ",format(DoublingTimeInt,digits=1))),
-                              showarrow=FALSE,xref="paper",xanchor="right",x=1, yref="paper", yanchor="top",y=1)
+             annotations=list(text=HTML(paste("Baseline: <br>R", tags$sub(0),'=',format(Ro,nsmall=1)," <br>r =", format(r,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTime,digits=1)," days <br><br> Intervention: <br>R", tags$sub(0),'=',RoInt,"<br>r =", format(rInt,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTimeInt,digits=1)," days")),
+                              showarrow=FALSE,xref="paper",xanchor="left",x=1.03, yref="paper", yanchor="top",y=0.7, align="left")
              )
     
   })
   
   output$plotCap = renderPlotly({
-    
+ 
     ParamStruct=GetModelParams(input)
     pModel=ParamStruct$pModel
     N=ParamStruct$N
@@ -390,13 +403,7 @@ function(input, output, session) {
     Ro=GetRo_SEIR(pModel,N)
     
     out.df=GetSpread_SEIR(pModel,N,Tmax,y0)
-    out.df2=rename(out.df, c(S="Susceptible",E="Exposed", I1="Infected.Mild", I2="Infected.Severe", 
-                             I3="Infected.Critical", R="Recovered", D="Dead"))
     out=melt(out.df,id="time")
-    out2=melt(out.df2,id="time")
-    out$variableName=out2$variable
-    out$variableLegend = paste0(out$variableName,' (',out$variable,')')
-    out$variableLegend = factor(out$variableLegend, levels = unique(out[["variableLegend"]]))
     
     #get r value
     V="E" #variable to calculate r for
@@ -408,7 +415,7 @@ function(input, output, session) {
     r=r.out$r
     DoublingTime=r.out$DoublingTime
     
-    # Intervention
+    # INTERVENTION
     
     # intervention parameters
     pModelInt=pModel
@@ -453,13 +460,23 @@ function(input, output, session) {
       #Set initial conditions and time interval
       #Round all numbers to lowest intergar, so if less than 1, go to zero
       iEnd=nrow(outInt.df)
-      S0 = floor(outInt.df[iEnd,"S"])
-      E0 = floor(outInt.df[iEnd,"E"])
-      I10 = floor(outInt.df[iEnd,"I1"])
-      I20 = floor(outInt.df[iEnd,"I2"])
-      I30 = floor(outInt.df[iEnd,"I3"])
-      D0 = floor(outInt.df[iEnd,"D"])
-      R0 = floor(outInt.df[iEnd,"R"])
+      if(input$RoundOneCap=="True"){
+        S0 = round(outInt.df[iEnd,"S"])
+        E0 = round(outInt.df[iEnd,"E"])
+        I10 = round(outInt.df[iEnd,"I1"])
+        I20 = round(outInt.df[iEnd,"I2"])
+        I30 = round(outInt.df[iEnd,"I3"])
+        D0 = round(outInt.df[iEnd,"D"])
+        R0 = round(outInt.df[iEnd,"R"])
+      }else{
+        S0 = outInt.df[iEnd,"S"]
+        E0 = outInt.df[iEnd,"E"]
+        I10 = outInt.df[iEnd,"I1"]
+        I20 = outInt.df[iEnd,"I2"]
+        I30 = outInt.df[iEnd,"I3"]
+        D0 = outInt.df[iEnd,"D"]
+        R0 = outInt.df[iEnd,"R"]
+      }
       y0 = c(S=S0, E=E0, I1=I10, I2=I20, I3=I30, R=R0, D=D0)
       
       #run with parameters back to baseline
@@ -470,36 +487,36 @@ function(input, output, session) {
       outInt.df=rbind(outInt.df,outIntOff.df)
     }
     
-    outInt.df2=rename(outInt.df, c(S="Susceptible",E="Exposed", I1="Infected.Mild", I2="Infected.Severe", 
-                                   I3="Infected.Critical", R="Recovered", D="Dead"))
-    outInt=melt(outInt.df,id="time")
-    outInt2=melt(outInt.df2,id="time")
-    outInt$variableName=outInt2$variable
-    outInt$variableLegend = paste0(outInt$variableName,' (',outInt$variable,')')
-    outInt$variableLegend = factor(outInt$variableLegend, levels = unique(outInt[["variableLegend"]]))
+    #get r value for intervention
+    #note, to do this need to simulate from beginning, just up to peak of epidemic without intervention
     
-    #combine both baseline and intervention into one dataset
-    outInt$Intervention="Intervention"
-    out$Intervention="Baseline"
-    outAll=rbind(out,outInt)
-    outAll$Intervention=factor(outAll$Intervention)
+    E0=input$InitInf
+    S0 = N-E0
+    y0 = c(S=S0, E=E0, I1=0, I2=0, I3=0, R=0, D=0)
+    outIntZero.df=GetSpread_SEIR(pModelInt,N,tpeak,y0)
+    outIntZero=melt(outIntZero.df,id="time")
     
-    #get r value
-    tpeak=outInt.df[which.max(select(outInt.df,"time",V)[,2]),"time"];
+    tpeakInt=outIntZero.df[which.max(select(outIntZero.df,"time",V)[,2]),"time"];
     
-    t2=tpeak/4
-    t1=tpeak/8
-    r.out=Getr_SEIR(outInt,t1,t2,V)
+    t2=tpeakInt/4
+    t1=tpeakInt/8
+    r.out=Getr_SEIR(outIntZero,t1,t2,V)
     rInt=r.out$r
     DoublingTimeInt=r.out$DoublingTime
     
     #subset the relevant variables and add in a column for capacity
-    capParams=SetHospCapacity()
-    
+    capParams=SetHospCapacitySliders(input)
+
     if(input$VarShowCap=="I3mv"){
       
-      outAll.sub=subset(outAll,variable=="I3")
-      outAll.sub=outAll.sub[,c("time","value","Intervention")]
+      out.df$value=out.df[,"I3"] # create observed variable
+      outInt.df$value=outInt.df[,"I3"]
+      out.df$Intervention="Baseline" # add intervention column
+      outInt.df$Intervention="Intervention"
+      outAll.df=rbind(out.df,outInt.df) #combine baseline and intervention
+      outAll.sub=subset(outAll.df, select=c("time","value","Intervention")) # choose only case column
+      outAll.sub$Intervention=factor(outAll.sub$Intervention) # set intervention as factor
+      outAll.sub=outAll.sub[with(outAll.sub,order(Intervention,time)),]
       
       capData=data.frame("time"=seq(0, Tmax, length.out = 1e3),"value"=rep(1,1e3)*capParams["ConvVentCap"]*(N/1000), "Intervention"="Conventional Mechanical \n Ventilator Capacity")
       combData=rbind(outAll.sub,capData)
@@ -512,8 +529,14 @@ function(input, output, session) {
       
     }else if(input$VarShowCap=="I3bed"){
       
-      outAll.sub=subset(outAll,variable=="I3")
-      outAll.sub=outAll.sub[,c("time","value","Intervention")]
+      out.df$value=out.df[,"I3"] # create observed variable
+      outInt.df$value=outInt.df[,input$VarShowInt]
+      out.df$Intervention="Baseline" # add intervention column
+      outInt.df$Intervention="Intervention"
+      outAll.df=rbind(out.df,outInt.df) #combine baseline and intervention
+      outAll.sub=subset(outAll.df, select=c("time","value","Intervention")) # choose only case column
+      outAll.sub$Intervention=factor(outAll.sub$Intervention) # set intervention as factor
+      outAll.sub=outAll.sub[with(outAll.sub,order(Intervention,time)),]
       
       capData=data.frame("time"=seq(0, Tmax, length.out = 1e3),"value"=rep(1,1e3)*capParams["AvailICUBeds"]*(N/1000), "Intervention"="Available ICU Beds")
       combData=rbind(outAll.sub,capData)
@@ -522,8 +545,13 @@ function(input, output, session) {
       
     }else if(input$VarShowCap=="Hosp"){
       
-      outAll.sub=subset(outAll, variable =="I2" | variable =="I3", select=c("time","value","variable","Intervention"))
-      outAll.sub=aggregate(value~time+Intervention,outAll.sub,sum)
+      out.df$value=rowSums(out.df[,c("I2","I3")]) # create observed variable
+      outInt.df$value=rowSums(outInt.df[,c("I2","I3")])
+      out.df$Intervention="Baseline" # add intervention column
+      outInt.df$Intervention="Intervention"
+      outAll.df=rbind(out.df,outInt.df) #combine baseline and intervention
+      outAll.sub=subset(outAll.df, select=c("time","value","Intervention")) # choose only case column
+      outAll.sub$Intervention=factor(outAll.sub$Intervention) # set intervention as factor
       outAll.sub=outAll.sub[with(outAll.sub,order(Intervention,time)),]
       
       capData=data.frame("time"=seq(0, Tmax, length.out = 1e3),"value"=rep(1,1e3)*capParams["AvailHospBeds"]*(N/1000), "Intervention"="Available Hospital Beds")
@@ -532,8 +560,13 @@ function(input, output, session) {
       p=plot_ly(data = combData, x=~time, y=~value, color=~Intervention, linetype=~Intervention, type='scatter', mode='lines', colors=c("#a50f15","#fc9272","grey"), linetypes=c("solid","solid","dash"))
       
     }else{ #CasesCap
-      outAll.sub=subset(outAll,variable=="I1" | variable =="I2" | variable =="I3", select=c("time","value","variable","Intervention"))
-      outAll.sub=aggregate(value~time+Intervention,outAll.sub,sum)
+      out.df$value=rowSums(out.df[,c("I1","I2","I3")]) # create observed variable
+      outInt.df$value=rowSums(outInt.df[,c("I1","I2","I3")])
+      out.df$Intervention="Baseline" # add intervention column
+      outInt.df$Intervention="Intervention"
+      outAll.df=rbind(out.df,outInt.df) #combine baseline and intervention
+      outAll.sub=subset(outAll.df, select=c("time","value","Intervention")) # choose only case column
+      outAll.sub$Intervention=factor(outAll.sub$Intervention) # set intervention as factor
       outAll.sub=outAll.sub[with(outAll.sub,order(Intervention,time)),]
       
       capData=data.frame("time"=seq(0, Tmax, length.out = 1e3),"value"=rep(1,1e3)*capParams["AvailHospBeds"]*(N/1000), "Intervention"="Available Hospital Beds")
@@ -544,7 +577,9 @@ function(input, output, session) {
     }
     
     
-    p=layout(p,xaxis=list(title="Time since introduction (days)"),yaxis=list(title=paste("Number per",formatC(N,big.mark=",",format="f",digits=0),"people"),type=input$yscaleCap)
+    p=layout(p,xaxis=list(title="Time since introduction (days)"),yaxis=list(title=paste("Number per",formatC(N,big.mark=",",format="f",digits=0),"people"),type=input$yscaleCap), 
+             annotations=list(text=HTML(paste("Baseline: <br>R", tags$sub(0),'=',format(Ro,nsmall=1)," <br>r =", format(r,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTime,digits=1)," days <br><br>Intervention: <br>R", tags$sub(0),'=',RoInt,"<br>r =", format(rInt,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTimeInt,digits=1), " days")),
+                              showarrow=FALSE,xref="paper",xanchor="left",x=1.03, yref="paper", yanchor="top",y=0.7, align="left")
     )
     
   })
@@ -577,16 +612,16 @@ function(input, output, session) {
   }) 
   
   output$plot4 <- renderImage({
-    filename <- normalizePath(file.path('./images',"model_diagram.jpg"))
+    filename <- normalizePath(file.path('./images',"model_diagram.png"))
     
     list(src = filename, height=200, width=500)
     
   }, deleteFile = FALSE)
   
-  url = a("GitHub", href="https://github.com/sherriexie/bedbugdisclosure")
+  url = a("GitHub", href="https://github.com/alsnhll/SEIR_COVID19")
   output$tab = renderUI({
-    #tagList("(To be fixed!) Rscripts used to make this R Shiny web application, along with all scripts used in the bed bug disclosure manuscript, are available on", url)
-    tagList("A Github link to the Rscripts used to make this R Shiny web application will be provided here eventually.")
+    tagList("Rscripts used to make this R Shiny web application are available on", url,". Contact Alison Hill alhill@fas.harvard.edu with questions.")
+
   })
   
   output$parameterDesc <- renderUI({
@@ -603,10 +638,31 @@ function(input, output, session) {
     HTML(paste("<b> N = </b>",formatC(N,big.mark=",",format="f",digits=0),""))
   })
   
-  # output$FracCriticalSlider <- renderUI({
-  #   maxFracCritical=100-input$FracSevere
-  #   sliderInput("FracCritical", "% of infections that are critical",0, maxFracCritical, min(5,maxFracCritical), step=1, pre="%")
-  # })
+  #Get default hospital capacity parameters
+  output$HospBedper <- renderUI({
+    numericInput("HospBedper","Total (per 1000 ppl)",value = hdata$HospBedper, min = 0, step = 0.1)
+  })
+  output$HospBedOcc <- renderUI({
+    numericInput("HospBedOcc","Occupancy (%)",value = hdata$HospBedOcc*100, min = 0, max = 100, step = 0.1)
+  })
+  output$ICUBedper <- renderUI({
+    numericInput("ICUBedper","Total (per 1000 ppl)",value = hdata$ICUBedper, min = 0, step = 0.01)
+  })
+  output$ICUBedOcc <- renderUI({
+    numericInput("ICUBedOcc","Occupancy (%)",value = hdata$ICUBedOcc*100, min = 0, max = 100, step = 1)
+  })
+  output$IncFluOcc <- renderUI({
+    numericInput("IncFluOcc","Increased occupancy during flu season (%)",value = hdata$IncFluOcc*100, min = 0, max = 100, step = 1)
+  })
+  output$ConvVentCap <- renderUI({
+    numericInput("ConvMVCap","Conventional",value = hdata$ConvMVCap, min = 0, step = 0.01)
+  })
+  output$ContVentCap <- renderUI({
+    numericInput("ContMVCap","Contingency",value = hdata$ContMVCap, min = 0, step = 0.01)
+  })
+  output$CrisisVentCap <- renderUI({
+    numericInput("CrisisMVCap","Crisis",value = hdata$CrisisMVCap, min = 0, step = 0.01)
+  })
   
   observeEvent(input$FracSevere,  {
     maxFracCritical=100-input$FracSevere
