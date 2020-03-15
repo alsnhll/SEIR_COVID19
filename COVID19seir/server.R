@@ -1,5 +1,4 @@
 library(deSolve)
-#library(dplyr)
 library(reshape)
 library(googlesheets4)
 sheets_deauth()
@@ -223,7 +222,7 @@ function(input, output, session) {
 
     p=layout(p,xaxis=list(title="Time since introduction (days)"),yaxis=list(title=paste("Number per",formatC(N,big.mark=",",format="f",digits=0),"people"),type=input$yscale),
              annotations=list(text=HTML(paste("R", tags$sub(0),'=',format(Ro,nsmall=1)," <br>r =", format(r,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTime,digits=1)," days")),
-                              showarrow=FALSE,xref="paper",xanchor="left",x=1.03, yref="paper", yanchor="center",y=0.4, align="left"))
+                              showarrow=FALSE,xref="paper",xanchor="left",x=1.05, yref="paper", yanchor="center",y=0.4, align="left"))
 
   })
   
@@ -338,9 +337,6 @@ function(input, output, session) {
       outInt.df$value=rowSums(outInt.df[,c("E", "I1","I2","I3")])
       
     }else if(input$VarShowInt=="Cases"){
-      print("in Cases")
-      print(nrow(out.df))
-      print(nrow(outInt.df))
       out.df$value=rowSums(out.df[,c("I1","I2","I3")]) # create observed variable
       outInt.df$value=rowSums(outInt.df[,c("I1","I2","I3")])
       
@@ -382,8 +378,8 @@ function(input, output, session) {
     p=plot_ly(data = outAll.sub, x=~time, y=~value, color=~Intervention, type='scatter', mode='lines',colors=c("#a50f15","#fc9272"))
     
     p=layout(p,xaxis=list(title="Time since introduction (days)"),yaxis=list(title=paste("Number per", formatC(N,big.mark=",",format="f",digits=0),"people"),type=input$yscaleInt),
-             annotations=list(text=HTML(paste("Baseline: <br>R", tags$sub(0),'=',format(Ro,nsmall=1)," <br>r =", format(r,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTime,digits=1)," days <br><br> Intervention: <br>R", tags$sub(0),'=',RoInt,"<br>r =", format(rInt,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTimeInt,digits=1)," days")),
-                              showarrow=FALSE,xref="paper",xanchor="left",x=1.03, yref="paper", yanchor="top",y=0.7, align="left")
+             annotations=list(text=HTML(paste("Baseline: <br>R", tags$sub(0),'=',format(Ro,nsmall=1)," <br>r =", format(r,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTime,digits=1)," days <br><br>Intervention: <br>R", tags$sub(0),'=',RoInt,"<br>r =", format(rInt,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTimeInt,digits=1)," days")),
+                              showarrow=FALSE,xref="paper",xanchor="left",x=1.05, yref="paper", yanchor="top",y=0.5, align="left")
              )
     
   })
@@ -580,7 +576,7 @@ function(input, output, session) {
     
     p=layout(p,xaxis=list(title="Time since introduction (days)"),yaxis=list(title=paste("Number per",formatC(N,big.mark=",",format="f",digits=0),"people"),type=input$yscaleCap), 
              annotations=list(text=HTML(paste("Baseline: <br>R", tags$sub(0),'=',format(Ro,nsmall=1)," <br>r =", format(r,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTime,digits=1)," days <br><br>Intervention: <br>R", tags$sub(0),'=',RoInt,"<br>r =", format(rInt,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTimeInt,digits=1), " days")),
-                              showarrow=FALSE,xref="paper",xanchor="left",x=1.03, yref="paper", yanchor="top",y=0.7, align="left")
+                              showarrow=FALSE,xref="paper",xanchor="left",x=1.05, yref="paper", yanchor="top",y=0.5, align="left")
     )
     
   })
@@ -621,7 +617,7 @@ function(input, output, session) {
   
   url = a("GitHub", href="https://github.com/alsnhll/SEIR_COVID19")
   output$tab = renderUI({
-    tagList("Rscripts used to make this R Shiny web application are available on", url,". Contact Alison Hill alhill@fas.harvard.edu with questions.")
+    tagList("Rscripts used to make this R Shiny web application are available on", url,". Contact Alison Hill alhill@fas.harvard.edu with questions. Thanks to Anjalika Nande, Andrei Gheorghe, Ski Krieger, Sherrie Xie, and Mike Levy for feedback on early versions of this tool.")
 
   })
   
@@ -639,37 +635,39 @@ function(input, output, session) {
     HTML(paste("<b> N = </b>",formatC(N,big.mark=",",format="f",digits=0),""))
   })
   
-  #Get default hospital capacity parameters
+  #Get default hospital capacity parameters and create sliders 
   output$HospBedper <- renderUI({
-    numericInput("HospBedper","Total (per 1000 ppl)",value = hdata$HospBedper, min = 0, step = 0.1)
+    numericInput("HospBedper","Total (per 1000 ppl)",value = signif(hdata$HospBedper,digits=3), min = 0, step = 0.1)
   })
   output$HospBedOcc <- renderUI({
-    numericInput("HospBedOcc","Occupancy (%)",value = hdata$HospBedOcc*100, min = 0, max = 100, step = 0.1)
+    numericInput("HospBedOcc","Occupancy (%)",value = signif(hdata$HospBedOcc,digits=3)*100, min = 0, max = 100, step = 0.1)
   })
   output$ICUBedper <- renderUI({
-    numericInput("ICUBedper","Total (per 1000 ppl)",value = hdata$ICUBedper, min = 0, step = 0.01)
+    numericInput("ICUBedper","Total (per 1000 ppl)",value = signif(hdata$ICUBedper,digits=3), min = 0, step = 0.01)
   })
   output$ICUBedOcc <- renderUI({
-    numericInput("ICUBedOcc","Occupancy (%)",value = hdata$ICUBedOcc*100, min = 0, max = 100, step = 1)
+    numericInput("ICUBedOcc","Occupancy (%)",value = signif(hdata$ICUBedOcc,digits=3)*100, min = 0, max = 100, step = 1)
   })
   output$IncFluOcc <- renderUI({
-    numericInput("IncFluOcc","Increased occupancy during flu season (%)",value = hdata$IncFluOcc*100, min = 0, max = 100, step = 1)
+    numericInput("IncFluOcc","Increased occupancy during flu season (%)",value = signif(hdata$IncFluOcc,digits=3)*100, min = 0, max = 100, step = 1)
   })
   output$ConvVentCap <- renderUI({
-    numericInput("ConvMVCap","Conventional",value = hdata$ConvMVCap, min = 0, step = 0.01)
+    numericInput("ConvMVCap","Conventional",value = signif(hdata$ConvMVCap,digits=3), min = 0, step = 0.01)
   })
   output$ContVentCap <- renderUI({
-    numericInput("ContMVCap","Contingency",value = hdata$ContMVCap, min = 0, step = 0.01)
+    numericInput("ContMVCap","Contingency",value = signif(hdata$ContMVCap,digits=3), min = 0, step = 0.01)
   })
   output$CrisisVentCap <- renderUI({
-    numericInput("CrisisMVCap","Crisis",value = hdata$CrisisMVCap, min = 0, step = 0.01)
+    numericInput("CrisisMVCap","Crisis",value = signif(hdata$CrisisMVCap,digits=3), min = 0, step = 0.01)
   })
   
+  #make sure the fraction of individuals in each stage of infection sums to 100%
   observeEvent(input$FracSevere,  {
     maxFracCritical=100-input$FracSevere
     updateSliderInput(session = session, inputId = "FracCritical", max = maxFracCritical)
   })
   
+  #Make sure the intervention doesn't end before it starts, and doesn't end after total simulation time
   observeEvent(input$Tint,  {
     updateSliderInput(session = session, inputId = "Tend", min = input$Tint)
     updateSliderInput(session = session, inputId = "TendC", min = input$Tint)

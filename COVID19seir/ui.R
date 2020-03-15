@@ -83,9 +83,9 @@ fluidPage(
                                 numericInput("Tint","Intervention start time (days):",value = 0, min = 0, step = 10),
                                 numericInput("Tend","Intervention end time (days):",value = 300, min = 0, step = 10),
                                 p(HTML("<b>Intervention type: reducing transmission, </b> for example via social distancing or quarantining in the community (for those with mild infection) or better isolation and personal-protective wear in hospitals (for those with more severe infection). Transmission from each of the clinical stages of infection can only be reduced if the user has chosen parameters such that these stages contribute to transmission.")),
-                                sliderInput("s1", "Reduction in transmission from mild infections ", 0, 100, 30, pre="%",step=10, animate=TRUE),
-                                sliderInput("s2", "Reduction in transmission from severe infections", 0, 100, 0, pre="%",step=10, animate=TRUE),
-                                sliderInput("s3", "Reduction in transmission rate from critical infections", 0, 100, 0, pre="%",step=10, animate=TRUE),
+                                sliderInput("s1", "Reduction in transmission from mild infections ", 0, 100, 30, pre="%",step=1, animate=TRUE),
+                                sliderInput("s2", "Reduction in transmission from severe infections", 0, 100, 0, pre="%",step=1, animate=TRUE),
+                                sliderInput("s3", "Reduction in transmission rate from critical infections", 0, 100, 0, pre="%",step=1, animate=TRUE),
                                 radioButtons("RoundOne", "Round values to nearest integar post-intervention?",
                                              choices = list("True" = "True","False" = "False"),inline=TRUE),
                               ),
@@ -107,6 +107,7 @@ fluidPage(
                               wellPanel(
                                 h4(div(HTML("<em>Set healthcare capacity...</em>"))),
                                 p(HTML(" The default values are for the U.S. and details of their sources are given in the Sources tab")),
+                                #Sliders for hospital capacity are reactive, since they take in default values from a file, so they are defined in the server file.  
                                 fluidRow(
                                   p(HTML(" <b> All hospital beds: </b>")),
                                   column(width = 6,
@@ -147,9 +148,9 @@ fluidPage(
                                 numericInput("TintC","Intervention start time (days):",value = 0, min = 0, step = 10),
                                 numericInput("TendC","Intervention end time (days):",value = 300, min = 0, step = 10),
                                 p(HTML("<b>Intervention type: reducing transmission.</b> For example via social distancing or isolation of infected individuals. Transmission from each of the clinical stages of infection can be differntially reduced, if the user has chosen parameters such that these stages contribute to transmission.")),
-                                sliderInput("s1C", "Reduction in transmission rate (mild infections) ", 0, 100, 30, pre="%",step=10, animate=TRUE),
-                                sliderInput("s2C", "Reduction in transmission rate (severe infections) ", 0, 100, 0, pre="%",step=10, animate=TRUE),
-                                sliderInput("s3C", "Reduction in transmission rate (critical infections) ", 0, 100, 0, pre="%",step=10, animate=TRUE),
+                                sliderInput("s1C", "Reduction in transmission rate (mild infections) ", 0, 100, 30, pre="%",step=1, animate=TRUE),
+                                sliderInput("s2C", "Reduction in transmission rate (severe infections) ", 0, 100, 0, pre="%",step=1, animate=TRUE),
+                                sliderInput("s3C", "Reduction in transmission rate (critical infections) ", 0, 100, 0, pre="%",step=1, animate=TRUE),
                                 radioButtons("RoundOneCap", "Round values to nearest integar post-intervention?",
                                              choices = list("True" = "True","False" = "False"), inline=TRUE),
                               ),
