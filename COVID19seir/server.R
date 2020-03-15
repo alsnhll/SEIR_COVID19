@@ -167,17 +167,18 @@ SetHospCapacitySliders=function(input){
 function(input, output, session) {
   observeEvent(input$reset,{
     updateSliderInput(session,'IncubPeriod',value = 5)
-    updateSliderInput(session,'DurMildInf',value = 10)
+    updateSliderInput(session,'DurMildInf',value = 6)
     updateSliderInput(session,'FracSevere',value = 15)
     updateSliderInput(session,'FracCritical',value = 5)
-    updateSliderInput(session,'CFR',value = 2)
-    updateSliderInput(session,'DurHosp',value = 11)
-    updateSliderInput(session,'TimeICUDeath',value = 7)
-    updateSliderInput(session,'b1',value = 0.25)
+    updateSliderInput(session,'ProbDeath',value = 40)
+    updateSliderInput(session,'DurHosp',value = 4)
+    updateSliderInput(session,'TimeICUDeath',value = 10)
+    updateSliderInput(session,'b1',value = 0.33)
     updateSliderInput(session,'b21',value = 0)
     updateSliderInput(session,'b31',value = 0)
-    updateSliderInput(session,'LogN',value = 5)
+    updateSliderInput(session,'LogN',value = 3)
     updateSliderInput(session,'Tmax',value = 300)
+    updateSliderInput(session,'InitInf',value = 1)
   })
   
   # Plot timecourse of all variables

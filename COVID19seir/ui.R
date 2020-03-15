@@ -27,7 +27,7 @@ fluidPage(
       sliderInput("TimeICUDeath", "Duration critical infection/ICU stay", 0, 30, 10, step=1, post = " days"),
       hr(),
       h4(div(HTML("<em>Set transmission values...</em>"))),
-      sliderInput("b1", div(HTML("Transmission rate (mild infections)")), 0, 1, 0.33, step=0.01),
+      sliderInput("b1", div(HTML("Transmission rate (mild infections)")), 0, 3, 0.33, step=0.02),
       sliderInput("b21", div(HTML("Transmission rate (severe infections, relative to mild)")),0, 2, 0, step=0.1),
       sliderInput("b31", div(HTML("Transmission rate (critical infections, relative to mild)")), 0, 2, 0, step=0.1),
       hr(),
