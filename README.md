@@ -1,4 +1,5 @@
 # SEIR_COVID19
+
 SEIR model for COVID-19 infection, including different clinical trajectories of infection
 
 The directory has the R code for a Shiny application. 
