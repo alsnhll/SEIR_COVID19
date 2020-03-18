@@ -1,0 +1,12 @@
+name: COVID19seir
+title: COVID19seir
+username:
+account: alhill
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1941769
+bundleId: 2883664
+url: https://alhill.shinyapps.io/COVID19seir/
+when: 1584289384.25582
+asMultiple: FALSE
+asStatic: FALSE
