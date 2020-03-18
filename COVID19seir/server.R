@@ -2,6 +2,7 @@ library(deSolve)
 library(reshape)
 library(googlesheets4)
 sheets_deauth()
+source("code/functions.R")
 
 # ----------------------------------------------------------------------------
 # Load data:
@@ -11,213 +12,31 @@ HospDataAll=read_sheet("https://docs.google.com/spreadsheets/d/1zZKKnZ47lqfmUGYD
 HospDataAll=na.omit(HospDataAll)
 hdata = as.data.frame(t(data.frame(HospDataAll[,c("Name","Value")], row.names="Name")))
 
-# ----------------------------------------------------------------------------
-# SetODEs_SEIR function:
-# --------------------
-
-SetODEs_SEIR=function(t,y,p){
-  S = y[1]
-  E = y[2]
-  I1 = y[3]
-  I2 = y[4]
-  I3 = y[5]
-  R = y[6]
-  D = y[7]
-  
-  with(as.list(p),{
-    
-    dS.dt = -(b1*I1+b2*I2+b3*I3)*S
-    dE.dt=(b1*I1+b2*I2+b3*I3)*S-a*E
-    dI1.dt=a*E-g1*I1-p1*I1
-    dI2.dt=p1*I1-g2*I2-p2*I2
-    dI3.dt=p2*I2-g3*I3-u*I3
-    dR.dt=g1*I1+g2*I2+g3*I3
-    dD.dt=u*I3
-    
-    return(list(c(dS.dt, dE.dt, dI1.dt, dI2.dt, dI3.dt, dR.dt, dD.dt)))
-  })
-}
-
-# ----------------------------------------------------------------------------
-# GetSpread_SEIR function:
-# --------------------
-GetSpread_SEIR = function(pModel,N,Tmax,y0){
-  
-  t = seq(from=0, to=Tmax, by=1)
-  # We solve the ODE's for the model in the presence and absence of disclosure 
-  # (out and out0, respectively)
-  out = ode(y=y0, times=t, func=SetODEs_SEIR, parms=pModel)
-  
-  df = as.data.frame(out)
-  
-  return(df)
-}
-
-# ----------------------------------------------------------------------------
-# GetParams_SEIR function:
-# --------------------
-
-GetParams_SEIR = function(pClin){
-  
-  with(as.list(pClin),{
-    
-    a=1/IncubPeriod
-    
-    g1=(1/DurMildInf)*FracMild
-    p1=(1/DurMildInf)-g1
-    
-    p2=(1/DurHosp)*(FracCritical/(FracSevere+FracCritical))
-    g2=(1/DurHosp)-p2
-    
-    if(FracCritical==0){
-      u=0
-    }else{
-      u=(1/TimeICUDeath)*(CFR/FracCritical)
-    }
-
-    g3=(1/TimeICUDeath)-u
-    
-    return(c(a=a,g1=g1,g2=g2,g3=g3,p1=p1,p2=p2,u=u))
-  })
-  
-}
-
-GetModelParams = function(input){
-  
-  IncubPeriod=input$IncubPeriod  #Incubation period, days
-  DurMildInf=input$DurMildInf #Duration of mild infections, days
-  FracSevere=input$FracSevere/100 #Fraction of infections that are severe
-  FracCritical=input$FracCritical/100 #Fraction of infections that are critical
-  FracMild=1-FracSevere-FracCritical  #Fraction of infections that are mild
-  ProbDeath=input$ProbDeath  #Probability of dying given critical infection
-  CFR=ProbDeath*FracCritical/100 #Case fatality rate (fraction of infections resulting in death)
-  TimeICUDeath=input$TimeICUDeath #Time from ICU admission to death, days
-  DurHosp=input$DurHosp #Duration of hospitalization, days
-  
-  pClin=c(IncubPeriod=IncubPeriod, DurMildInf=DurMildInf,FracMild=FracMild, FracSevere=FracSevere,FracCritical=FracCritical,CFR=CFR,TimeICUDeath=TimeICUDeath,DurHosp=DurHosp)
-
-  pModel=GetParams_SEIR(pClin)
-  
-  N=10^(input$LogN)
-  
-  b1=input$b1/N
-  b2=input$b21*b1
-  b3=input$b31*b1
-  b=c(b1,b2,b3)
-  pModel=c(b=b,pModel)
-  
-  return(list("N"=N,"pModel"=pModel))
-  
-}
-
-GetRo_SEIR = function(p,N){
-  
-  with(as.list(p),{
-    
-    Ro=N*((b1/(p1+g1))+(p1/(p1+g1))*(b2/(p2+g2)+ (p2/(p2+g2))*(b3/(u+g3))))
-
-    return(Ro)
-  })
-  
-}
-
-
-Getr_SEIR = function(out,t1,t2,V){
-  
-  outV=out[out$variable==V,]
-
-  value1=outV$value[which.min(abs(t1-outV$time))]
-  value2=outV$value[which.min(abs(t2-outV$time))]
-
-  r=(log(value2)-log(value1))/(t2-t1)
-
-  DoublingTime=log(2)/r
-  
-  return(list("r"=r,"DoublingTime"=DoublingTime))
-
-}
-
-SetHospCapacity=function(){
-
-  AvailHospBeds=hdata$HospBedper*(1-hdata$HospBedOcc*(1+hdata$IncFluOcc)) #Available hospital beds per 1000 ppl in US based on total beds and occupancy
-  AvailICUBeds=hdata$ICUBedper*(1-hdata$ICUBedOcc*(1+hdata$IncFluOcc)) #Available ICU beds per 1000 ppl in US, based on total beds and occupancy. Only counts adult not neonatal/pediatric beds
-  ConvVentCap=hdata$ConvMVCap #Estimated excess # of patients who could be ventilated in US (per 1000 ppl) using conventional protocols
-  ContVentCap=hdata$ContMVCap #Estimated excess # of patients who could be ventilated in US (per 1000 ppl) using contingency protocols
-  CrisisVentCap=hdata$CrisisMVCap #Estimated excess # of patients who could be ventilated in US (per 1000 ppl) using crisis protocols
-  
-  capParams=c("AvailHospBeds"=AvailHospBeds,"AvailICUBeds"=AvailICUBeds,"ConvVentCap"=ConvVentCap,"ContVentCap"=ContVentCap,"CrisisVentCap"=CrisisVentCap)
-
-  return(capParams)
-}
-
-SetHospCapacitySliders=function(input){
-  
-  AvailHospBeds=input$HospBedper*(100-input$HospBedOcc*(1+input$IncFluOcc/100))/100 #Available hospital beds per 1000 ppl in US based on total beds and occupancy
-  AvailICUBeds=input$ICUBedper*(100-input$ICUBedOcc*(1+input$IncFluOcc/100))/100 #Available ICU beds per 1000 ppl in US, based on total beds and occupancy. Only counts adult not neonatal/pediatric beds
-  ConvVentCap=input$ConvMVCap #Estimated excess # of patients who could be ventilated in US (per 1000 ppl) using conventional protocols
-  ContVentCap=input$ContMVCap #Estimated excess # of patients who could be ventilated in US (per 1000 ppl) using contingency protocols
-  CrisisVentCap=input$CrisisMVCap #Estimated excess # of patients who could be ventilated in US (per 1000 ppl) using crisis protocols
-  
-  capParams=c("AvailHospBeds"=AvailHospBeds,"AvailICUBeds"=AvailICUBeds,"ConvVentCap"=ConvVentCap,"ContVentCap"=ContVentCap,"CrisisVentCap"=CrisisVentCap)
-
-    return(capParams)
-}
 
 function(input, output, session) {
-  observeEvent(input$reset,{
-    updateSliderInput(session,'IncubPeriod',value = 5)
-    updateSliderInput(session,'DurMildInf',value = 6)
-    updateSliderInput(session,'FracSevere',value = 15)
-    updateSliderInput(session,'FracCritical',value = 5)
-    updateSliderInput(session,'ProbDeath',value = 40)
-    updateSliderInput(session,'DurHosp',value = 4)
-    updateSliderInput(session,'TimeICUDeath',value = 10)
-    updateSliderInput(session,'b1',value = 0.33)
-    updateSliderInput(session,'b21',value = 0)
-    updateSliderInput(session,'b31',value = 0)
-    updateSliderInput(session,'LogN',value = 3)
-    updateSliderInput(session,'Tmax',value = 300)
-    updateSliderInput(session,'InitInf',value = 1)
-  })
   
   # Plot timecourse of all variables
   
   output$plot0 = renderPlotly({
-
-    ParamStruct=GetModelParams(input)
-    pModel=ParamStruct$pModel
-    N=ParamStruct$N
-    Tmax=input$Tmax
     
-    # Set initial conditions and time interval
-    E0=input$InitInf
-    S0 = N-E0
-    y0 = c(S=S0, E=E0, I1=0, I2=0, I3=0, R=0, D=0)
- 
-    #get Ro value
-    Ro=GetRo_SEIR(pModel,N)
-
-    #run ODEs
-    out.df=GetSpread_SEIR(pModel,N,Tmax,y0)
+    sim=SimSEIR(input)
+    
+    out.df=sim$out.df
+    N=sim$N
+    Ro=sim$Ro
+    r=sim$r
+    DoublingTime=sim$DoublingTime
+    
+    #reformat data for plotting
     out.df2=rename(out.df, c(S="Susceptible",E="Exposed", I1="Infected.Mild", I2="Infected.Severe", 
-                              I3="Infected.Critical", R="Recovered", D="Dead"))
+                             I3="Infected.Critical", R="Recovered", D="Dead"))
     out=melt(out.df,id="time")
     out2=melt(out.df2,id="time")
     out$variableName=out2$variable
     out$variableLegend = paste0(out$variableName,' (',out$variable,')')
     out$variableLegend = factor(out$variableLegend, levels = unique(out[["variableLegend"]]))
-    #out$value[out$value<1.0]=0
     
-    #get r value
-    V="E" #variable to calculate r for
-    tpeak=out.df[which.max(select(out.df,"time",V)[,2]),"time"];
-
-    t2=tpeak/4
-    t1=tpeak/8
-    r.out=Getr_SEIR(out,t1,t2,V)
-    r=r.out$r
-    DoublingTime=r.out$DoublingTime
-    
+    #plot
     p=plot_ly(data = out, x=~time, y=~value, color=~variableLegend, type='scatter', mode='lines')
 
     p=layout(p,xaxis=list(title="Time since introduction (days)"),yaxis=list(title=paste("Number per",formatC(N,big.mark=",",format="f",digits=0),"people"),type=input$yscale),
@@ -230,107 +49,21 @@ function(input, output, session) {
   
   output$plotInt = renderPlotly({
     
-    ParamStruct=GetModelParams(input)
-    pModel=ParamStruct$pModel
-    N=ParamStruct$N
-    Tmax=input$Tmax
+    sim=SimSEIR(input)
     
-    # Set initial conditions and time interval
-    E0=input$InitInf
-    S0 = N-E0
-    y0 = c(S=S0, E=E0, I1=0, I2=0, I3=0, R=0, D=0)
+    out.df=sim$out.df
+    N=sim$N
+    Ro=sim$Ro
+    r=sim$r
+    DoublingTime=sim$DoublingTime
     
-    #get Ro value
-    Ro=GetRo_SEIR(pModel,N)
+    simInt=SimSEIRintB(input)
     
-    out.df=GetSpread_SEIR(pModel,N,Tmax,y0)
-    out=melt(out.df,id="time")
-
-    #get r value
-    V="E" #variable to calculate r for
-    tpeak=out.df[which.max(select(out.df,"time",V)[,2]),"time"];
+    outInt.df=simInt$out.df
+    RoInt=simInt$Ro
+    rInt=simInt$r
+    DoublingTimeInt=simInt$DoublingTime
     
-    t2=tpeak/4
-    t1=tpeak/8
-    r.out=Getr_SEIR(out,t1,t2,V)
-    r=r.out$r
-    DoublingTime=r.out$DoublingTime
-    
-    # INTERVENTION
-    
-    # intervention parameters
-    pModelInt=pModel
-    pModelInt["b1"]=pModelInt["b1"]*(1-input$s1/100)
-    pModelInt["b2"]=pModelInt["b2"]*(1-input$s2/100)
-    pModelInt["b3"]=pModelInt["b3"]*(1-input$s3/100)
-    
-    RoInt=GetRo_SEIR(pModelInt,N)
-    
-    # start time of intervention
-    
-    Tint=input$Tint
-    Tend=input$Tend
-    
-    validate(
-      need(Tint < Tmax, "Must have intervention time less that total simulation time")
-    )
-    
-    iInt=which.min(abs(Tint-out$time)) # find nearest time to Tint
-
-    # Set initial conditions and time interval
-    S0 = out.df[iInt,"S"]
-    E0 = out.df[iInt,"E"]
-    I10 = out.df[iInt,"I1"]
-    I20 = out.df[iInt,"I2"]
-    I30 = out.df[iInt,"I3"]
-    D0 = out.df[iInt,"D"]
-    R0 = out.df[iInt,"R"]
-    y0 = c(S=S0, E=E0, I1=I10, I2=I20, I3=I30, R=R0, D=D0)
-    
-    #Run intervention time course until Tend. Up to time Tint, use baseline solution
-    Trun=Tend-Tint
-
-    outInt.df=GetSpread_SEIR(pModelInt,N,Trun,y0)
-    outInt.df$time=outInt.df$time+Tint
-    
-    #--After intervention ends, run with regular parameaters up to time Tmax
-    Trun2=Tmax-Tend
-
-    if(Trun2==0){
-    }else{
-      #Set initial conditions and time interval
-      #Round all numbers to lowest intergar, so if less than 1, go to zero
-      iEnd=nrow(outInt.df)
-      
-      if(input$RoundOne=="True"){
-      S0 = round(outInt.df[iEnd,"S"])
-      E0 = round(outInt.df[iEnd,"E"])
-      I10 = round(outInt.df[iEnd,"I1"])
-      I20 = round(outInt.df[iEnd,"I2"])
-      I30 = round(outInt.df[iEnd,"I3"])
-      D0 = round(outInt.df[iEnd,"D"])
-      R0 = round(outInt.df[iEnd,"R"])
-      }else{
-        S0 = outInt.df[iEnd,"S"]
-        E0 = outInt.df[iEnd,"E"]
-        I10 = outInt.df[iEnd,"I1"]
-        I20 = outInt.df[iEnd,"I2"]
-        I30 = outInt.df[iEnd,"I3"]
-        D0 = outInt.df[iEnd,"D"]
-        R0 = outInt.df[iEnd,"R"]
-      }
-    
-      y0 = c(S=S0, E=E0, I1=I10, I2=I20, I3=I30, R=R0, D=D0)
-      
-      #run with parameters back to baseline
-      outIntOff.df=GetSpread_SEIR(pModel,N,Trun2,y0)
-      outIntOff.df$time=outIntOff.df$time+Tend
-
-      #combine vectors
-      outInt.df=rbind(outInt.df,outIntOff.df)
-    }
-    
-
     if(input$VarShowInt=="Inf"){
       
       out.df$value=rowSums(out.df[,c("E", "I1","I2","I3")]) # create observed variable
@@ -358,22 +91,6 @@ function(input, output, session) {
     outAll.sub$Intervention=factor(outAll.sub$Intervention) # set intervention as factor
     outAll.sub=outAll.sub[with(outAll.sub,order(Intervention,time)),]
     
-    #get r value for intervention
-    #note, to do this need to simulate from beginning, just up to peak of epidemic without intervention
-    
-    E0=input$InitInf
-    S0 = N-E0
-    y0 = c(S=S0, E=E0, I1=0, I2=0, I3=0, R=0, D=0)
-    outIntZero.df=GetSpread_SEIR(pModelInt,N,tpeak,y0)
-    outIntZero=melt(outIntZero.df,id="time")
-    
-    tpeakInt=outIntZero.df[which.max(select(outIntZero.df,"time",V)[,2]),"time"];
-    
-    t2=tpeakInt/4
-    t1=tpeakInt/8
-    r.out=Getr_SEIR(outIntZero,t1,t2,V)
-    rInt=r.out$r
-    DoublingTimeInt=r.out$DoublingTime
     
     p=plot_ly(data = outAll.sub, x=~time, y=~value, color=~Intervention, type='scatter', mode='lines',colors=c("#a50f15","#fc9272"))
     
@@ -385,124 +102,26 @@ function(input, output, session) {
   })
   
   output$plotCap = renderPlotly({
- 
-    ParamStruct=GetModelParams(input)
-    pModel=ParamStruct$pModel
-    N=ParamStruct$N
+    
+    sim=SimSEIR(input)
+    
+    out.df=sim$out.df
+    N=sim$N
+    Ro=sim$Ro
+    r=sim$r
+    DoublingTime=sim$DoublingTime
+    
+    simInt=SimSEIRintB(input)
+    
+    outInt.df=simInt$out.df
+    RoInt=simInt$Ro
+    rInt=simInt$r
+    DoublingTimeInt=simInt$DoublingTime
+    
     Tmax=input$Tmax
     
-    # Set initial conditions and time interval
-    E0=input$InitInf
-    S0 = N-E0
-    y0 = c(S=S0, E=E0, I1=0, I2=0, I3=0, R=0, D=0)
-    
-    #get Ro value
-    Ro=GetRo_SEIR(pModel,N)
-    
-    out.df=GetSpread_SEIR(pModel,N,Tmax,y0)
-    out=melt(out.df,id="time")
-    
-    #get r value
-    V="E" #variable to calculate r for
-    tpeak=out.df[which.max(select(out.df,"time",V)[,2]),"time"];
-    
-    t2=tpeak/4
-    t1=tpeak/8
-    r.out=Getr_SEIR(out,t1,t2,V)
-    r=r.out$r
-    DoublingTime=r.out$DoublingTime
-    
-    # INTERVENTION
-    
-    # intervention parameters
-    pModelInt=pModel
-    pModelInt["b1"]=pModelInt["b1"]*(1-input$s1C/100)
-    pModelInt["b2"]=pModelInt["b2"]*(1-input$s2C/100)
-    pModelInt["b3"]=pModelInt["b3"]*(1-input$s3C/100)
-    
-    RoInt=GetRo_SEIR(pModelInt,N)
-    
-    # start time of intervention
-    
-    Tint=input$TintC
-    Tend=input$TendC
-    
-    validate(
-      need(Tint < Tmax, "Must have intervention time less that total simulation time")
-    )
-    
-    iInt=which.min(abs(Tint-out$time)) # find nearest time to Tint
-    
-    # Set initial conditions and time interval
-    S0 = out.df[iInt,"S"]
-    E0 = out.df[iInt,"E"]
-    I10 = out.df[iInt,"I1"]
-    I20 = out.df[iInt,"I2"]
-    I30 = out.df[iInt,"I3"]
-    D0 = out.df[iInt,"D"]
-    R0 = out.df[iInt,"R"]
-    y0 = c(S=S0, E=E0, I1=I10, I2=I20, I3=I30, R=R0, D=D0)
-    
-    #Run intervention time course until Tend. Up to time Tint, use baseline solution
-    Trun=Tend-Tint
-    
-    outInt.df=GetSpread_SEIR(pModelInt,N,Trun,y0)
-    outInt.df$time=outInt.df$time+Tint
-    
-    #--After intervention ends, run with regular parameaters up to time Tmax
-    Trun2=Tmax-Tend
-    
-    if(Trun2==0){
-    }else{
-      #Set initial conditions and time interval
-      #Round all numbers to lowest intergar, so if less than 1, go to zero
-      iEnd=nrow(outInt.df)
-      if(input$RoundOneCap=="True"){
-        S0 = round(outInt.df[iEnd,"S"])
-        E0 = round(outInt.df[iEnd,"E"])
-        I10 = round(outInt.df[iEnd,"I1"])
-        I20 = round(outInt.df[iEnd,"I2"])
-        I30 = round(outInt.df[iEnd,"I3"])
-        D0 = round(outInt.df[iEnd,"D"])
-        R0 = round(outInt.df[iEnd,"R"])
-      }else{
-        S0 = outInt.df[iEnd,"S"]
-        E0 = outInt.df[iEnd,"E"]
-        I10 = outInt.df[iEnd,"I1"]
-        I20 = outInt.df[iEnd,"I2"]
-        I30 = outInt.df[iEnd,"I3"]
-        D0 = outInt.df[iEnd,"D"]
-        R0 = outInt.df[iEnd,"R"]
-      }
-      y0 = c(S=S0, E=E0, I1=I10, I2=I20, I3=I30, R=R0, D=D0)
-      
-      #run with parameters back to baseline
-      outIntOff.df=GetSpread_SEIR(pModel,N,Trun2,y0)
-      outIntOff.df$time=outIntOff.df$time+Tend
-      
-      #combine vectors
-      outInt.df=rbind(outInt.df,outIntOff.df)
-    }
-    
-    #get r value for intervention
-    #note, to do this need to simulate from beginning, just up to peak of epidemic without intervention
-    
-    E0=input$InitInf
-    S0 = N-E0
-    y0 = c(S=S0, E=E0, I1=0, I2=0, I3=0, R=0, D=0)
-    outIntZero.df=GetSpread_SEIR(pModelInt,N,tpeak,y0)
-    outIntZero=melt(outIntZero.df,id="time")
-    
-    tpeakInt=outIntZero.df[which.max(select(outIntZero.df,"time",V)[,2]),"time"];
-    
-    t2=tpeakInt/4
-    t1=tpeakInt/8
-    r.out=Getr_SEIR(outIntZero,t1,t2,V)
-    rInt=r.out$r
-    DoublingTimeInt=r.out$DoublingTime
-    
     #subset the relevant variables and add in a column for capacity
-    capParams=SetHospCapacitySliders(input)
+    capParams=SetHospCapacity(input)
 
     if(input$VarShowCap=="I3mv"){
       
@@ -581,11 +200,10 @@ function(input, output, session) {
     
   })
   
-  # Show the values using an HTML table
+  # Show the rate parameter values using an HTML table
   output$ParameterTable <-renderTable(
     formattedModelParameters(), hover = T,bordered = T,striped = F, digits=3
   )
-  
   
   formattedModelParameters <- reactive({
     
@@ -608,6 +226,7 @@ function(input, output, session) {
     
   }) 
   
+  # Display the model diagram
   output$plot4 <- renderImage({
     filename <- normalizePath(file.path('./images',"model_diagram.png"))
     
@@ -615,6 +234,7 @@ function(input, output, session) {
     
   }, deleteFile = FALSE)
   
+  # 
   url = a("GitHub", href="https://github.com/alsnhll/SEIR_COVID19")
   output$tab = renderUI({
     tagList("Rscripts used to make this R Shiny web application are available on", url,". Contact Alison Hill alhill@fas.harvard.edu with questions. Thanks to Anjalika Nande, Andrei Gheorghe, Ski Krieger, Sherrie Xie, and Mike Levy for feedback on early versions of this tool.")
@@ -625,10 +245,14 @@ function(input, output, session) {
     tags$iframe(src="Parameters.nb.html",width="100%",frameBorder="0",height="5000px")
   })
   
+  # Return the case fatality rate to the user as the % severe infections is changed
+  
   output$CFR <- renderText({ 
     CFR=(input$ProbDeath/100)*(input$FracCritical)
     HTML(paste("<b> Case fatality ratio:</b>",CFR,"%"))
   })
+  
+  # ------------Set the sliders/forms that have dynamic values based on other sliders ----------------------
   
   output$N <- renderText({ 
     N=round(10^(input$LogN))
@@ -712,5 +336,21 @@ function(input, output, session) {
     updateSliderInput(session = session, inputId = "s3", value = input$s3C)
   })
 
-  
+  # Reset all parameters if the RESET button is pushed
+  observeEvent(input$reset,{
+    updateSliderInput(session,'IncubPeriod',value = 5)
+    updateSliderInput(session,'DurMildInf',value = 6)
+    updateSliderInput(session,'FracSevere',value = 15)
+    updateSliderInput(session,'FracCritical',value = 5)
+    updateSliderInput(session,'ProbDeath',value = 40)
+    updateSliderInput(session,'DurHosp',value = 4)
+    updateSliderInput(session,'TimeICUDeath',value = 10)
+    updateSliderInput(session,'b1',value = 0.33)
+    updateSliderInput(session,'b21',value = 0)
+    updateSliderInput(session,'b31',value = 0)
+    updateSliderInput(session,'LogN',value = 3)
+    updateSliderInput(session,'Tmax',value = 300)
+    updateSliderInput(session,'InitInf',value = 1)
+  })
+   
 }

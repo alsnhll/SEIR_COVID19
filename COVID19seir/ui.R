@@ -78,7 +78,7 @@ fluidPage(
                                 selectInput("VarShowInt",
                                             label = "Select variable to show:",
                                             choices = c("Suceptible (S)"="S", "Exposed (E)"="E", "Mild Infections (I1)"="I1", "Severe Infections (I2)"="I2", "Critical Infections (I3)"="I3", "Recovered (R)"="R", "Dead (D)"="D", "All infected (E+I1+I2+I3)"="Inf","All symptomatic (I1+I2+I3)"="Cases","All hospitalized (I2+I3)"="Hosp"),
-                                            selected = c("I3")
+                                            selected = c("Cases")
                                 ),
                                 numericInput("Tint","Intervention start time (days):",value = 0, min = 0, step = 10),
                                 numericInput("Tend","Intervention end time (days):",value = 300, min = 0, step = 10),
@@ -143,7 +143,7 @@ fluidPage(
                                 selectInput("VarShowCap",
                                             label = "Select variable to show:",
                                             choices = c("Critical Infections (I3) vs ICU beds"="I3bed", "Critical Infections (I3) vs ventilator capacity"="I3mv", "Severe + Critical Infections (I2+I3) vs Hospital Beds"="Hosp", "All symptomatic cases (I1+I2+I3) vs Hospital Beds"="CasesCap"),
-                                            selected = c("CasesCap")
+                                            selected = c("Hosp")
                                 ),
                                 numericInput("TintC","Intervention start time (days):",value = 0, min = 0, step = 10),
                                 numericInput("TendC","Intervention end time (days):",value = 300, min = 0, step = 10),
