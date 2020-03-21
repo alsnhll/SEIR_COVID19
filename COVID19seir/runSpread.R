@@ -1,5 +1,8 @@
 library(deSolve)
+library(plotly)
+library(dplyr)
 library(reshape)
+library(htmltools)
 source("code/functions.R")
 
 # Set parameters
@@ -48,6 +51,6 @@ out$variableLegend = factor(out$variableLegend, levels = unique(out[["variableLe
 p=plot_ly(data = out, x=~time, y=~value, color=~variableLegend, type='scatter', mode='lines')
 
 p=layout(p,xaxis=list(title="Time since introduction (days)"),yaxis=list(title=paste("Number per",formatC(N,big.mark=",",format="f",digits=0),"people"),type=input$yscale),
-         annotations=list(text=HTML(paste("R", tags$sub(0),'=',format(Ro,nsmall=1)," <br>r =", format(r,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTime,digits=1)," days")),
+         annotations=list(text=HTML(paste("R", tags$sub(0),'=',formatC(Ro,digits=2)," <br>r =", formatC(r,digits=2)," per day <br>T",tags$sub(2)," = ",formatC(DoublingTime,digits=2)," days")),
                           showarrow=FALSE,xref="paper",xanchor="left",x=1.05, yref="paper", yanchor="center",y=0.4, align="left"))
 p

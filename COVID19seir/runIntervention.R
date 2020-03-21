@@ -1,5 +1,8 @@
 library(deSolve)
+library(plotly)
+library(dplyr)
 library(reshape)
+library(htmltools)
 source("code/functions.R")
 
 # Set parameters
@@ -82,7 +85,7 @@ outAll.sub=outAll.sub[with(outAll.sub,order(Intervention,time)),]
 p=plot_ly(data = outAll.sub, x=~time, y=~value, color=~Intervention, type='scatter', mode='lines',colors=c("#a50f15","#fc9272"))
 
 p=layout(p,xaxis=list(title="Time since introduction (days)"),yaxis=list(title=paste("Number per", formatC(N,big.mark=",",format="f",digits=0),"people"),type=input$yscaleInt),
-         annotations=list(text=HTML(paste("Baseline: <br>R", tags$sub(0),'=',format(Ro,nsmall=1)," <br>r =", format(r,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTime,digits=1)," days <br><br>Intervention: <br>R", tags$sub(0),'=',RoInt,"<br>r =", format(rInt,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTimeInt,digits=1)," days")),
+         annotations=list(text=HTML(paste("Baseline: <br>R", tags$sub(0),'=',formatC(Ro,digits=2)," <br>r =", formatC(r,digits=2)," per day <br>T",tags$sub(2)," = ",formatC(DoublingTime,digits=2)," days <br><br>Intervention: <br>R", tags$sub(0),'=',formatC(RoInt,digits=2),"<br>r =", formatC(rInt,digits=2)," per day <br>T",tags$sub(2)," = ",formatC(DoublingTimeInt,digits=2)," days")),
                           showarrow=FALSE,xref="paper",xanchor="left",x=1.05, yref="paper", yanchor="top",y=0.5, align="left")
 )
 
