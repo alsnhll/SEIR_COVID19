@@ -140,24 +140,66 @@ GetRo_SEIR = function(p,N){
   
 }
 
+# ----------------------------------------------------------------------------
+# Getr_SEIR_Emp function:
+# --------------------
+# Function to calculate the early exponential growth rate (r) for the model from the model timecourse
+# INPUT: p - named list of the clinical parameters
+#        N - total population size
+# OUTPUT: Ro
 
-Getr_SEIR = function(out.df,V){
+# Getr_SEIR_Emp = function(out.df,V){
+#   
+#   tpeak=out.df[which.max(select(out.df,"time",V)[,2]),"time"]; # find location of peak infection
+#   
+#   t2=tpeak/4 # choose timepoints long before peak infection
+#   t1=tpeak/8
+#   
+#   outV=subset(out.df, select=c("time",V))
+#   colnames(outV)=c("time","value")
+#   value1=outV$value[which.min(abs(t1-outV$time))]
+#   value2=outV$value[which.min(abs(t2-outV$time))]
+#   r=(log(value2)-log(value1))/(t2-t1)
+#   
+#   DoublingTime=log(2)/r
+#   
+#   return(list("r"=r,"DoublingTime"=DoublingTime))
+#   
+# }
+
+# ----------------------------------------------------------------------------
+# Getr_SEIR function:
+# --------------------
+# Function to calculate the early exponential growth rate (r) for the model from parameters
+# INPUT: p - named list of the clinical parameters
+#        N - total population size
+# OUTPUT: Ro
+
+Getr_SEIR = function(p,N){
   
-  tpeak=out.df[which.max(select(out.df,"time",V)[,2]),"time"]; # find location of peak infection
-  
-  t2=tpeak/4 # choose timepoints long before peak infection
-  t1=tpeak/8
-  
-  outV=subset(out.df, select=c("time",V))
-  colnames(outV)=c("time","value")
-  value1=outV$value[which.min(abs(t1-outV$time))]
-  value2=outV$value[which.min(abs(t2-outV$time))]
-  r=(log(value2)-log(value1))/(t2-t1)
-  
-  DoublingTime=log(2)/r
-  
-  return(list("r"=r,"DoublingTime"=DoublingTime))
-  
+    with(as.list(p),{
+      
+      # Compute the coefficients of the characteristic polynomial
+      
+      sig1 = g1 + p1
+      sig2 = g2 + p2;
+      sig3 = g3 + u
+      
+      C4 = 1
+      C3 = a + sig1 + sig2 + sig3
+      C2 = a*(sig1 + sig2 + sig3 - b1*N) + sig1*sig2 + sig1*sig3 + sig2*sig3
+      C1 = a*(sig1*sig2 + sig1*sig3 + sig2*sig3 - b1*N*(sig2 + sig3) - b2*N*p1) + sig1*sig2*sig3
+      C0 = a*(sig1*sig2*sig3 - b1*N*sig2*sig3 - p1*b2*N*sig3 - p1*p2*b3*N)
+      
+      #  Compute the maximum eigenvalue, corresponding to r
+    
+      r = max(Re(polyroot(c(C0, C1, C2, C3, C4))))
+      
+      DoublingTime=log(2)/r
+      
+      return(list("r"=r,"DoublingTime"=DoublingTime))
+      
+    })
 }
 
 
@@ -200,19 +242,14 @@ SimSEIR = function(input){
   S0 = N-E0
   y0 = c(S=S0, E=E0, I1=0, I2=0, I3=0, R=0, D=0)
   
-  #get Ro value
+  #get Ro and r values
   Ro=GetRo_SEIR(pModel,N)
+  r.out=Getr_SEIR(pModel,N)
+  r=r.out$r
+  DoublingTime=r.out$DoublingTime
   
   #run ODEs
   out.df=GetSpread_SEIR(pModel,Tmax,y0)
-  
-  #get r value
-  V="E" #variable to calculate r for
-  
-  #r.out=Getr_SEIR(out,t1,t2,V)
-  r.out=Getr_SEIR(out.df,V)
-  r=r.out$r
-  DoublingTime=r.out$DoublingTime
   
   return(list("out.df"=out.df,"N"=N,"Ro"=Ro,"r"=r,"DoublingTime"=DoublingTime))
   
@@ -235,6 +272,18 @@ SimSEIRintB = function(input){
   # start/end time of intervention
   Tint=input$Tint
   Tend=input$Tend
+  
+  # intervention parameters
+  pModelInt=pModel
+  pModelInt["b1"]=pModelInt["b1"]*(1-input$s1/100)
+  pModelInt["b2"]=pModelInt["b2"]*(1-input$s2/100)
+  pModelInt["b3"]=pModelInt["b3"]*(1-input$s3/100)
+  
+  # intervention Ro and r values
+  RoInt=GetRo_SEIR(pModelInt,N)
+  r.out=Getr_SEIR(pModelInt,N)
+  rInt=r.out$r
+  DoublingTimeInt=r.out$DoublingTime
   
   if(Tint==Tend){ # If the intervention starts and ends at the same time, just return baseline values
     
@@ -275,15 +324,6 @@ SimSEIRintB = function(input){
       y0 = c(S=S0, E=E0, I1=0, I2=0, I3=0, R=0, D=0)
       
     }
-    
-    # intervention parameters
-    pModelInt=pModel
-    pModelInt["b1"]=pModelInt["b1"]*(1-input$s1/100)
-    pModelInt["b2"]=pModelInt["b2"]*(1-input$s2/100)
-    pModelInt["b3"]=pModelInt["b3"]*(1-input$s3/100)
-    
-    # intervention Ro
-    RoInt=GetRo_SEIR(pModelInt,N)
     
     #Run intervention time course until Tend. Up to time Tint, use baseline solution
     Trun=Tend-Tint
@@ -339,19 +379,6 @@ SimSEIRintB = function(input){
     
   }
   
-  #get r value for intervention
-  #note, to do this need to simulate from beginning with intervention parameters
-  
-  E0=input$InitInf
-  S0 = N-E0
-  y0 = c(S=S0, E=E0, I1=0, I2=0, I3=0, R=0, D=0)
-  outIntZero.df=GetSpread_SEIR(pModelInt,Tmax,y0)
-  outIntZero=melt(outIntZero.df,id="time")
-  
-  V="E" #variable to calculate r for
-  r.out=Getr_SEIR(outIntZero.df,V)
-  rInt=r.out$r
-  DoublingTimeInt=r.out$DoublingTime
   
   return(list("out.df"=outInt.df,"N"=N,"Ro"=RoInt,"r"=rInt,"DoublingTime"=DoublingTimeInt))
   
