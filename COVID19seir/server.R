@@ -18,7 +18,7 @@ function(input, output, session) {
   # Plot timecourse of all variables
   
   output$plot0 = renderPlotly({
-    
+   
     sim=SimSEIR(input)
     
     out.df=sim$out.df
@@ -27,21 +27,65 @@ function(input, output, session) {
     r=sim$r
     DoublingTime=sim$DoublingTime
     
+    #combine exposed classes for plotting
+    out.df$E0=out.df$E0+out.df$E1
+    out.df$E1=NULL
+    out.df=rename(out.df, c(E0="E"))
+    
     #reformat data for plotting
-    out.df2=rename(out.df, c(S="Susceptible",E="Exposed", I1="Infected.Mild", I2="Infected.Severe", 
-                             I3="Infected.Critical", R="Recovered", D="Dead"))
+    out.df2=rename(out.df, c(S="Susceptible", E="Exposed", I0="Infected.NoSymptoms", I1="Infected.Mild", I2="Infected.Severe", I3="Infected.Critical", R="Recovered", D="Dead"))
     out=melt(out.df,id="time")
     out2=melt(out.df2,id="time")
     out$variableName=out2$variable
     out$variableLegend = paste0(out$variableName,' (',out$variable,')')
     out$variableLegend = factor(out$variableLegend, levels = unique(out[["variableLegend"]]))
     
+    #create data for plotting total infected
+    Comb.df=out.df
+    Comb.df$I0=rowSums(out.df[,c("I0","I1","I2","I3")]) # create total infected
+    Comb.df=rename(Comb.df, c(I0="I"))
+    Comb.df$I1=NULL
+    Comb.df$I2=NULL
+    Comb.df$I3=NULL
+    
+    Comb.df2=rename(Comb.df, c(S="Susceptible", E="Exposed", I="Infected", R="Recovered", D="Dead"))
+    Comb=melt(Comb.df,id="time")
+    Comb2=melt(Comb.df2,id="time")
+    Comb$variableName=Comb2$variable
+    Comb$variableLegend = paste0(Comb$variableName,' (',Comb$variable,')')
+    Comb$variableLegend = factor(Comb$variableLegend, levels = unique(Comb[["variableLegend"]]))
+    
+    
     #plot
-    p=plot_ly(data = out, x=~time, y=~value, color=~variableLegend, type='scatter', mode='lines')
-
+    
+    if(input$PlotCombine=="Yes"){
+      p=plot_ly(data = Comb, x=~time, y=~value, color=~variableLegend, type='scatter', mode='lines')
+    }else{
+      if(input$AllowAsym=="Yes"){
+        p=plot_ly(data = out, x=~time, y=~value, color=~variableLegend, type='scatter', mode='lines')
+      }else{
+        #don't want to show the I0 class in the plot
+        outSym=out[out$variable!="I0",]
+        p=plot_ly(data = outSym, x=~time, y=~value, color=~variableLegend, type='scatter', mode='lines')
+      }
+    }
+    
     p=layout(p,xaxis=list(title="Time since introduction (days)"),yaxis=list(title=paste("Number per",formatC(N,big.mark=",",format="f",digits=0),"people"),type=input$yscale),
-             annotations=list(text=HTML(paste("R", tags$sub(0),'=',format(Ro,nsmall=1)," <br>r =", format(r,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTime,digits=1)," days")),
-                              showarrow=FALSE,xref="paper",xanchor="left",x=1.05, yref="paper", yanchor="center",y=0.4, align="left"))
+             annotations=list(text=HTML(paste("R", tags$sub(0),'=',formatC(Ro,digits=2)," <br>r =", formatC(r,digits=2)," per day <br>T",tags$sub(2)," = ",formatC(DoublingTime,digits=2)," days")),
+                              showarrow=FALSE,xref="paper",xanchor="left",x=1.05, yref="paper", yanchor="center",y=0.35, align="left"))
+    
+    if(input$AllowSeason=="Yes"){
+      
+      Ro.Season=sim$Ro.Season
+      tpeak=365+input$seas.phase
+      tmin=180+input$seas.phase
+      #print(Ro.Season)
+      #print(Ro.Season$Ro.now)
+      p=layout(p,annotations=list(text=HTML(paste("Seasonal R", tags$sub(0), ": <br>Initial R", tags$sub(0),'=',formatC(Ro.Season$Ro.now,digits=2),"<br>Peak R", tags$sub(0),'=',formatC(Ro.Season$Ro.max,digits=2),"@day",formatC(tpeak,format = "f",digits=0),"<br>Min R", tags$sub(0),'=',formatC(Ro.Season$Ro.min,digits=2),"@day",formatC(tmin,format = "f",digits=0))),
+                                  showarrow=FALSE,xref="paper",xanchor="left",x=1.05, yref="paper", yanchor="center",y=0.05, align="left"))
+      
+    }
+    p
 
   })
   
@@ -57,6 +101,11 @@ function(input, output, session) {
     r=sim$r
     DoublingTime=sim$DoublingTime
     
+    #combine exposed classes for plotting
+    out.df$E0=out.df$E0+out.df$E1
+    out.df$E1=NULL
+    out.df=rename(out.df, c(E0="E"))
+    
     simInt=SimSEIRintB(input)
     
     outInt.df=simInt$out.df
@@ -64,10 +113,15 @@ function(input, output, session) {
     rInt=simInt$r
     DoublingTimeInt=simInt$DoublingTime
     
+    #combine exposed classes for plotting
+    outInt.df$E0=outInt.df$E0+outInt.df$E1
+    outInt.df$E1=NULL
+    outInt.df=rename(outInt.df, c(E0="E"))
+    
     if(input$VarShowInt=="Inf"){
       
-      out.df$value=rowSums(out.df[,c("E", "I1","I2","I3")]) # create observed variable
-      outInt.df$value=rowSums(outInt.df[,c("E", "I1","I2","I3")])
+      out.df$value=rowSums(out.df[,c("E","I0","I1","I2","I3")]) # create observed variable
+      outInt.df$value=rowSums(outInt.df[,c("E","I0","I1","I2","I3")])
       
     }else if(input$VarShowInt=="Cases"){
       out.df$value=rowSums(out.df[,c("I1","I2","I3")]) # create observed variable
@@ -76,7 +130,6 @@ function(input, output, session) {
     }else if(input$VarShowInt=="Hosp"){
       out.df$value=rowSums(out.df[,c("I2","I3")]) # create observed variable
       outInt.df$value=rowSums(outInt.df[,c("I2","I3")])
-      out.df$Intervention="Baseline" # add intervention column
 
     }else{
 
@@ -96,8 +149,22 @@ function(input, output, session) {
     
     p=layout(p,xaxis=list(title="Time since introduction (days)"),yaxis=list(title=paste("Number per", formatC(N,big.mark=",",format="f",digits=0),"people"),type=input$yscaleInt),
              annotations=list(text=HTML(paste("Baseline: <br>R", tags$sub(0),'=',format(Ro,nsmall=1)," <br>r =", format(r,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTime,digits=1)," days <br><br>Intervention: <br>R", tags$sub(0),'=',RoInt,"<br>r =", format(rInt,digits=2)," per day <br>T",tags$sub(2)," = ",format(DoublingTimeInt,digits=1)," days")),
-                              showarrow=FALSE,xref="paper",xanchor="left",x=1.05, yref="paper", yanchor="top",y=0.5, align="left")
+                              showarrow=FALSE,xref="paper",xanchor="left",x=1.05, yref="paper", yanchor="top",y=0.8, align="left")
              )
+    
+    if(input$AllowSeason=="Yes"){
+      
+      Ro.Season=sim$Ro.Season
+      RoInt.Season=simInt$Ro.Season
+      tpeak=365+input$seas.phase
+      tmin=180+input$seas.phase
+      
+      p=layout(p,annotations=list(text=HTML(paste0("Seasonal R", tags$sub(0), ": <br>Initial R", tags$sub(0),'=',formatC(Ro.Season$Ro.now,digits=2),"/",formatC(RoInt.Season$Ro.now,digits=2),"<br>Peak R", tags$sub(0),'=',formatC(Ro.Season$Ro.max,digits=2),"/",formatC(RoInt.Season$Ro.max,digits=2),"<br>  @day ",formatC(tpeak,format = "f",digits=0),"<br>Min R", tags$sub(0),'=',formatC(Ro.Season$Ro.min,digits=2),"/",formatC(RoInt.Season$Ro.min,digits=2),"<br>  @day ",formatC(tmin,format = "f",digits=0))),
+                                  showarrow=FALSE,xref="paper",xanchor="left",x=1.05, yref="paper", yanchor="center",y=0, align="left"))
+      
+    }
+    
+    p
     
   })
   
@@ -111,12 +178,22 @@ function(input, output, session) {
     r=sim$r
     DoublingTime=sim$DoublingTime
     
+    #combine exposed classes for plotting
+    out.df$E0=out.df$E0+out.df$E1
+    out.df$E1=NULL
+    out.df=rename(out.df, c(E0="E"))
+    
     simInt=SimSEIRintB(input)
     
     outInt.df=simInt$out.df
     RoInt=simInt$Ro
     rInt=simInt$r
     DoublingTimeInt=simInt$DoublingTime
+    
+    #combine exposed classes for plotting
+    outInt.df$E0=outInt.df$E0+outInt.df$E1
+    outInt.df$E1=NULL
+    outInt.df=rename(outInt.df, c(E0="E"))
     
     Tmax=input$Tmax
     
@@ -146,7 +223,7 @@ function(input, output, session) {
     }else if(input$VarShowCap=="I3bed"){
       
       out.df$value=out.df[,"I3"] # create observed variable
-      outInt.df$value=outInt.df[,input$VarShowInt]
+      outInt.df$value=outInt.df[,"I3"]
       out.df$Intervention="Baseline" # add intervention column
       outInt.df$Intervention="Intervention"
       outAll.df=rbind(out.df,outInt.df) #combine baseline and intervention
@@ -198,12 +275,15 @@ function(input, output, session) {
                               showarrow=FALSE,xref="paper",xanchor="left",x=1.05, yref="paper", yanchor="top",y=0.5, align="left")
     )
     
+    p
+    
   })
   
   # Show the rate parameter values using an HTML table
   output$ParameterTable <-renderTable(
     formattedModelParameters(), hover = T,bordered = T,striped = F, digits=3
   )
+  
   
   formattedModelParameters <- reactive({
     
@@ -213,16 +293,74 @@ function(input, output, session) {
     pModel.df=data.frame(as.list(pModel))
     pModel.df$N=N
     
+    #If asymptomatic infection is allowed
+    if(input$AllowAsym=="Yes"){
+      pModel.df$b0=pModel.df$b0*N
+      names(pModel.df)[names(pModel.df)=="b0"] <- "b0*N"
+    }else{
+      pModel.df$b0=NULL
+      pModel.df$f=NULL
+      pModel.df$g0=NULL
+    }
+    
+    # If presymptomatic transmission is allowed
+    if(input$AllowPresym=="Yes"){
+      pModel.df$be=pModel.df$be*N
+      names(pModel.df)[names(pModel.df)=="be"] <- "be*N"
+    }else{
+      pModel.df$be=NULL
+      pModel.df$a1=NULL
+      names(pModel.df)[names(pModel.df)=="a0"] <- "a"
+    }
+    
     pModel.df$b1=pModel.df$b1*N
     pModel.df$b2=pModel.df$b3*N
     pModel.df$b3=pModel.df$b3*N
+    
     names(pModel.df)[names(pModel.df)=="b1"] <- "b1*N"
     names(pModel.df)[names(pModel.df)=="b2"] <- "b2*N"
     names(pModel.df)[names(pModel.df)=="b3"] <- "b3*N"
     
+    if(input$AllowSeason=="Yes"){
+      names(pModel.df)[names(pModel.df)=="seas.amp"] <- "Seasonal.Amplitude"
+      names(pModel.df)[names(pModel.df)=="seas.phase"] <- "Seasonal.Phase"
+    }else{
+      pModel.df$seas.amp=NULL
+      pModel.df$seas.phase=NULL
+    }
+    
     pModel.df=melt(pModel.df)
-    colnames(pModel.df)[2]="value (/day)"
+    colnames(pModel.df)[1]="Parameter"
+    colnames(pModel.df)[2]="Value"
+   
     pModel.df
+    
+  }) 
+  
+  # Show the early ratios of cases of different types using an HTML table
+  output$RatioTable <-renderTable(
+    formattedRatios(), hover = T,bordered = T,striped = F, digits=1
+  )
+  
+  formattedRatios <- reactive({
+    
+    ParamStruct=GetModelParams(input)
+    pModel=ParamStruct$pModel
+    N=ParamStruct$N
+
+    #r value and ratios
+    r.out=Getr_SEIR(pModel,N)
+    MaxEigenVector=r.out$MaxEigenVector
+    MaxEigenVector=MaxEigenVector[1:length(MaxEigenVector)-1] #remove D:D
+    
+    ratios.df=data.frame(MaxEigenVector)
+    colnames(ratios.df)[1]="Value"
+    #ratios.df = subset(ratios.df, select=c(2,1))
+    #
+    ratios.df$Ratio=c("E0:D","E1:D","I0:D","I1:D","I2:D","I3:D","R:D")
+    ratios.df = ratios.df[c(2,1)]
+    ratios.df
+    
     
   }) 
   
@@ -234,15 +372,13 @@ function(input, output, session) {
     
   }, deleteFile = FALSE)
   
-  # 
-  url = a("GitHub", href="https://github.com/alsnhll/SEIR_COVID19")
-  output$tab = renderUI({
-    tagList("Rscripts used to make this R Shiny web application are available on", url,". Contact Alison Hill alhill@fas.harvard.edu with questions. Thanks to Anjalika Nande, Andrei Gheorghe, Ski Krieger, Sherrie Xie, and Mike Levy for feedback on early versions of this tool.")
-
-  })
   
   output$parameterDesc <- renderUI({
-    tags$iframe(src="Parameters.nb.html",width="100%",frameBorder="0",height="5000px")
+    tags$iframe(src="Parameters.nb.html",width="100%",frameBorder="0",height="7000px")
+  })
+  
+  output$Tutorial <- renderUI({
+    tags$iframe(src="Tutorial.html",width="100%",frameBorder="0",height="5000px")
   })
   
   # Return the case fatality rate to the user as the % severe infections is changed
@@ -253,11 +389,6 @@ function(input, output, session) {
   })
   
   # ------------Set the sliders/forms that have dynamic values based on other sliders ----------------------
-  
-  output$N <- renderText({ 
-    N=round(10^(input$LogN))
-    HTML(paste("<b> N = </b>",formatC(N,big.mark=",",format="f",digits=0),""))
-  })
   
   #Get default hospital capacity parameters and create sliders 
   output$HospBedper <- renderUI({
@@ -291,14 +422,29 @@ function(input, output, session) {
     updateSliderInput(session = session, inputId = "FracCritical", max = maxFracCritical)
   })
   
+  #Make sure the part of the incubation period that leads to transmission is less than total incubation period
+  observeEvent(input$IncubPeriod,  {
+    maxPresymPeriod=input$IncubPeriod
+    updateSliderInput(session = session, inputId = "PresymPeriod", max = maxPresymPeriod)
+  })
+  
   #Make sure the intervention doesn't end before it starts, and doesn't end after total simulation time
+  #Just do for Intervention tab, Capacity tab will copy these values
   observeEvent(input$Tint,  {
     updateSliderInput(session = session, inputId = "Tend", min = input$Tint)
-    updateSliderInput(session = session, inputId = "TendC", min = input$Tint)
+    #updateSliderInput(session = session, inputId = "TendC", min = input$Tint)
   })
   observeEvent(input$Tmax,  {
     updateSliderInput(session = session, inputId = "Tend", max = input$Tmax)
-    updateSliderInput(session = session, inputId = "TendC", max = input$Tmax)
+    #updateSliderInput(session = session, inputId = "TendC", max = input$Tmax)
+    
+    # if(input$Tmax<input$Tend){
+    #   updateSliderInput(session = session, inputId = "Tend", value = input$Tmax)
+    # }
+    # if(input$Tmax<input$TendC){
+    #   updateSliderInput(session = session, inputId = "TendC", value = input$Tmax)
+    # }
+    
   })
   
   #Update intervention sliders on capacity tab to match intervention tab
@@ -316,6 +462,9 @@ function(input, output, session) {
   })
   observeEvent(input$s3,  {
     updateSliderInput(session = session, inputId = "s3C", value = input$s3)
+  })
+  observeEvent(input$s0,  {
+    updateSliderInput(session = session, inputId = "s0C", value = input$s0)
   })
   
   #And vice versa
@@ -335,20 +484,23 @@ function(input, output, session) {
   observeEvent(input$s3C,  {
     updateSliderInput(session = session, inputId = "s3", value = input$s3C)
   })
+  observeEvent(input$s0C,  {
+    updateSliderInput(session = session, inputId = "s0", value = input$s0C)
+  })
 
   # Reset all parameters if the RESET button is pushed
   observeEvent(input$reset,{
     updateSliderInput(session,'IncubPeriod',value = 5)
     updateSliderInput(session,'DurMildInf',value = 6)
     updateSliderInput(session,'FracSevere',value = 15)
-    updateSliderInput(session,'FracCritical',value = 5)
+    updateSliderInput(session,'FracCritical',value = 6)
     updateSliderInput(session,'ProbDeath',value = 40)
-    updateSliderInput(session,'DurHosp',value = 4)
-    updateSliderInput(session,'TimeICUDeath',value = 10)
-    updateSliderInput(session,'b1',value = 0.33)
-    updateSliderInput(session,'b21',value = 0)
-    updateSliderInput(session,'b31',value = 0)
-    updateSliderInput(session,'LogN',value = 3)
+    updateSliderInput(session,'DurHosp',value = 6)
+    updateSliderInput(session,'TimeICUDeath',value = 8)
+    updateSliderInput(session,'b1',value = 0.5)
+    updateSliderInput(session,'b2',value = 0.1)
+    updateSliderInput(session,'b3',value = 0.1)
+    updateSliderInput(session,'N',value = 1000)
     updateSliderInput(session,'Tmax',value = 300)
     updateSliderInput(session,'InitInf',value = 1)
   })

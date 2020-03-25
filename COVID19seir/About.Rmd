@@ -1,0 +1,28 @@
+---
+title: "About"
+output: html_notebook
+---
+
+Rscripts used to make this R Shiny web application are available on [Github](https://github.com/alsnhll/SEIR_COVID19).
+
+This model was originally developed by [Alison Hill](https://twitter.com/alison_l_hill) who you can contact with questions <alhill@fas.harvard.edu>. 
+
+A team of researchers have contributed to the continual development of the model and app:
+
+* [Mike Levy](https://www.med.upenn.edu/apps/faculty/index.php/g275/p6363868) @Penn (Epidemiological oversight and model development)
+* [Sherrie Xie](https://www.linkedin.com/in/sherrie-xie-362197154) @Penn (tutorial and explanatory text of model)
+* Justin Sheen @Penn (data synthesis and coding)
+* Julianna Shinnick @Penn (literature review and parameter collection)
+* Andrei Gheorghe @Harvard (mathematical analysis of the model)
+* [Chris Rehmann](https://www.engineering.iastate.edu/people/profile/rehmann/) @Iowa State (mathematical analysis of the model)
+
+Thanks also to Anjalika Nande and Ski Krieger for feedback on early versions of this tool.
+
+Funding to host this app was generously provided by [John Pettitt](https://twitter.com/jpp123)
+
+Other COVID-19 apps that we recommend:
+
+* https://benflips.shinyapps.io/nCovForecast/ - For tracking the growth rate of infections over time, comparing contries, and estimating the fraction of cases detected
+* https://mackgrenfell.com/forecaster/covid19 - Simulations simple exponential growth and compares to hospital capacity
+* http://gabgoh.github.io/COVID/index.html - Visualize the impact of intervention timing and strength on the reduction of cases
+* https://neherlab.org/covid19/ - Similar to this app, simulating epidemic dynamics and comparing to hospital capacity

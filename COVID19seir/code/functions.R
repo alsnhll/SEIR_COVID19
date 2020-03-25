@@ -9,24 +9,30 @@
 
 SetODEs_SEIR=function(t,y,p){
   S = y[1]
-  E = y[2]
-  I1 = y[3]
-  I2 = y[4]
-  I3 = y[5]
-  R = y[6]
-  D = y[7]
+  E0 = y[2]
+  E1 = y[3]
+  I0 = y[4]
+  I1 = y[5]
+  I2 = y[6]
+  I3 = y[7]
+  R = y[8]
+  D = y[9]
   
   with(as.list(p),{
     
-    dS.dt = -(b1*I1+b2*I2+b3*I3)*S
-    dE.dt=(b1*I1+b2*I2+b3*I3)*S-a*E
-    dI1.dt=a*E-g1*I1-p1*I1
+    seas=(1 + seas.amp*cos(2*pi*(t-seas.phase)/365))
+    
+    dS.dt = -(be*E1+b0*I0+b1*I1+b2*I2+b3*I3)*S*seas
+    dE0.dt=(be*E1+b0*I0+b1*I1+b2*I2+b3*I3)*S*seas-a0*E0
+    dE1.dt=a0*E0-a1*E1
+    dI0.dt=f*a1*E1-g0*I0
+    dI1.dt=(1-f)*a1*E1-g1*I1-p1*I1
     dI2.dt=p1*I1-g2*I2-p2*I2
     dI3.dt=p2*I2-g3*I3-u*I3
-    dR.dt=g1*I1+g2*I2+g3*I3
+    dR.dt=g0*I0+g1*I1+g2*I2+g3*I3
     dD.dt=u*I3
     
-    return(list(c(dS.dt, dE.dt, dI1.dt, dI2.dt, dI3.dt, dR.dt, dD.dt)))
+    return(list(c(dS.dt, dE0.dt, dE1.dt,dI0.dt,dI1.dt, dI2.dt, dI3.dt, dR.dt, dD.dt)))
   })
 }
 
@@ -71,20 +77,57 @@ GetModelParams = function(input){
   TimeICUDeath=input$TimeICUDeath #Time from ICU admission to death, days
   DurHosp=input$DurHosp #Duration of hospitalization, days
   
-  pClin=c(IncubPeriod=IncubPeriod, DurMildInf=DurMildInf,FracMild=FracMild, FracSevere=FracSevere,FracCritical=FracCritical,CFR=CFR,TimeICUDeath=TimeICUDeath,DurHosp=DurHosp)
+  N=input$N
+  
+  # If seasonality is allowed. If there is seasonality, the input beta values correspond to the current values. Must be adjusted to find the true (average) beta values
+  
+  if(input$AllowSeason=="Yes"){
+    seas.amp=input$seas.amp/100 #relative amplitude of seasonal fluctuations, in [0,1]
+    seas.phase=input$seas.phase #phase of seasonal fluctuations, measuered in days relative to time zero when peak will occur (0=peak occurs at time zero, 30 = peak occurs one month after time zero). Can be negative
+  }else{
+    seas.amp=0.0 
+    seas.phase=0
+  }
+  seas0=(1 + seas.amp*cos(2*pi*seas.phase/365)) #value of seasonality coefficient at time zero
+   # the validate function only works when Shiny package is loaded
+    #  validate(
+  #    need(seas0>0, 'With this seasonality pattern, the b1 value at time zero would be zero, so there would be no outbreak. Choose another phase or amplitude for seasonality')
+  #  )
+  
+  # The transmission rates are changed from values per time to values per capita per time
+  b1=input$b1/(N*seas0)
+  b2=input$b2/(N*seas0)
+  b3=input$b3/(N*seas0)
+  
+  #If asymptomatic infection is allowed
+  if(input$AllowAsym=="Yes"){
+    FracAsym=input$FracAsym/100 #Fraction of all infections that are asymptomatic
+    DurAsym=input$DurAsym #Duration of asympatomatic infection
+    b0=input$b0/(N*seas0)
+  }else{
+    FracAsym=0 #Fraction of all infections that are asymptomatic
+    DurAsym=7 #Duration of asympatomatic infection
+    b0 = 0 #Transmission rate (asymptomatic infections)
+  }
+  
+  # If presymptomatic transmission is allowed
+  if(input$AllowPresym=="Yes"){
+    PresymPeriod=input$PresymPeriod #Length of infections phase of incubation period
+    be=input$be/(N*seas0)
+  }else{
+    PresymPeriod=0 #Length of infectious phase of incubation period
+    be = 0 #Transmission rate (pre-symptomatic)
+  }
+
+  pClin=c(IncubPeriod=IncubPeriod, DurMildInf=DurMildInf,FracMild=FracMild, FracSevere=FracSevere,FracCritical=FracCritical,CFR=CFR,TimeICUDeath=TimeICUDeath,DurHosp=DurHosp,FracAsym=FracAsym,PresymPeriod=PresymPeriod,DurAsym=DurAsym)
   
   # Turn these clinical parameters into the rate constants of the model
   pModel=GetParams_SEIR(pClin)
   
-  N=10^(input$LogN)
+  pModel=c(be=be,b0=b0,b1=b1,b2=b2,b3=b3,pModel)
   
-  # The transmission rates are changed from values per time to values per capita per time
-  b1=input$b1/N
-  b2=input$b21*b1
-  b3=input$b31*b1
-  b=c(b1,b2,b3)
-  pModel=c(b=b,pModel)
-  
+  pModel=c(pModel,seas.amp=seas.amp, seas.phase=seas.phase)
+
   return(list("N"=N,"pModel"=pModel))
   
 }
@@ -100,7 +143,12 @@ GetParams_SEIR = function(pClin){
   
   with(as.list(pClin),{
     
-    a=1/IncubPeriod
+    a1=min(10^6,1/PresymPeriod) #presymptomatic period of transmission
+    a0=min(10^6,(IncubPeriod-PresymPeriod)^(-1)) # true latent period, avoid infinity when no presymptomatic phase
+    
+    f=FracAsym
+    
+    g0=1/DurAsym
     
     g1=(1/DurMildInf)*FracMild
     p1=(1/DurMildInf)-g1
@@ -116,7 +164,7 @@ GetParams_SEIR = function(pClin){
     
     g3=(1/TimeICUDeath)-u
     
-    return(c(a=a,g1=g1,g2=g2,g3=g3,p1=p1,p2=p2,u=u))
+    return(c(a0=a0,a1=a1,f=f,g0=g0,g1=g1,g2=g2,g3=g3,p1=p1,p2=p2,u=u))
   })
   
 }
@@ -133,7 +181,7 @@ GetRo_SEIR = function(p,N){
   
   with(as.list(p),{
     
-    Ro=N*((b1/(p1+g1))+(p1/(p1+g1))*(b2/(p2+g2)+ (p2/(p2+g2))*(b3/(u+g3))))
+    Ro=N*((be/a1)+f*(b0/g0)+(1-f)*((b1/(p1+g1))+(p1/(p1+g1))*(b2/(p2+g2)+ (p2/(p2+g2))*(b3/(u+g3)))))
     
     return(Ro)
   })
@@ -141,31 +189,25 @@ GetRo_SEIR = function(p,N){
 }
 
 # ----------------------------------------------------------------------------
-# Getr_SEIR_Emp function:
+# GetRo_SEIR_Season function:
 # --------------------
-# Function to calculate the early exponential growth rate (r) for the model from the model timecourse
+# Function to calculate the basic reporductive ratio (Ro) for the model with seasonality, returning it at current time, peak, and trough
 # INPUT: p - named list of the clinical parameters
 #        N - total population size
 # OUTPUT: Ro
 
-# Getr_SEIR_Emp = function(out.df,V){
-#   
-#   tpeak=out.df[which.max(select(out.df,"time",V)[,2]),"time"]; # find location of peak infection
-#   
-#   t2=tpeak/4 # choose timepoints long before peak infection
-#   t1=tpeak/8
-#   
-#   outV=subset(out.df, select=c("time",V))
-#   colnames(outV)=c("time","value")
-#   value1=outV$value[which.min(abs(t1-outV$time))]
-#   value2=outV$value[which.min(abs(t2-outV$time))]
-#   r=(log(value2)-log(value1))/(t2-t1)
-#   
-#   DoublingTime=log(2)/r
-#   
-#   return(list("r"=r,"DoublingTime"=DoublingTime))
-#   
-# }
+GetRo_SEIR_Season = function(p,N){
+  
+  with(as.list(p),{
+    
+    Ro.now=N*((b1/(p1+g1))+(p1/(p1+g1))*(b2/(p2+g2)+ (p2/(p2+g2))*(b3/(u+g3))))*(1 + seas.amp*cos(2*pi*(0-seas.phase)/365))
+    Ro.max=N*((b1/(p1+g1))+(p1/(p1+g1))*(b2/(p2+g2)+ (p2/(p2+g2))*(b3/(u+g3))))*(1 + seas.amp)
+    Ro.min=N*((b1/(p1+g1))+(p1/(p1+g1))*(b2/(p2+g2)+ (p2/(p2+g2))*(b3/(u+g3))))*(1 - seas.amp)
+    Ro=list("Ro.now"=Ro.now,"Ro.max"=Ro.max,"Ro.min"=Ro.min)
+    return(Ro)
+  })
+  
+}
 
 # ----------------------------------------------------------------------------
 # Getr_SEIR function:
@@ -176,32 +218,35 @@ GetRo_SEIR = function(p,N){
 # OUTPUT: Ro
 
 Getr_SEIR = function(p,N){
-  
-    with(as.list(p),{
-      
-      # Compute the coefficients of the characteristic polynomial
-      
-      sig1 = g1 + p1
-      sig2 = g2 + p2;
-      sig3 = g3 + u
-      
-      C4 = 1
-      C3 = a + sig1 + sig2 + sig3
-      C2 = a*(sig1 + sig2 + sig3 - b1*N) + sig1*sig2 + sig1*sig3 + sig2*sig3
-      C1 = a*(sig1*sig2 + sig1*sig3 + sig2*sig3 - b1*N*(sig2 + sig3) - b2*N*p1) + sig1*sig2*sig3
-      C0 = a*(sig1*sig2*sig3 - b1*N*sig2*sig3 - p1*b2*N*sig3 - p1*p2*b3*N)
-      
-      #  Compute the maximum eigenvalue, corresponding to r
-    
-      r = max(Re(polyroot(c(C0, C1, C2, C3, C4))))
-      
-      DoublingTime=log(2)/r
-      
-      return(list("r"=r,"DoublingTime"=DoublingTime))
-      
-    })
-}
 
+  with(as.list(p),{
+    
+    #  Compute the maximum eigenvalue, corresponding to r, and the corresponding eigenvector, which gives the ratios of the numbers of individuals in each class during the early growth phase
+    
+    # matrix representation of the linearized system when S=N
+    JacobianMat=rbind(c(-a0, N*be, N*b0, N*b1, N*b2, N*b3, 0, 0), 
+                      c(a0, -a1, 0, 0, 0, 0, 0, 0), 
+                      c(0, a1*f, -g0, 0, 0, 0, 0, 0), 
+                      c(0, a1 - a1*f, 0, -p1-g1, 0, 0, 0, 0), 
+                      c(0, 0, 0, p1, -p2-g2, 0, 0, 0), 
+                      c(0, 0, 0, 0, p2, -u-g3, 0, 0), 
+                      c(0, 0, g0, g1, g2, g3 , 0, 0), 
+                      c(0, 0, 0, 0, 0, u, 0, 0)
+    )
+    
+    eig=eigen(JacobianMat)
+    eig$values=Re(eig$values) #sometimes it add zero complex parts
+    r=max(eig$values)
+    MaxEigenVector=eig$vectors[,which.max(eig$values)]
+    MaxEigenVector=MaxEigenVector/MaxEigenVector[length(MaxEigenVector)] #normalize to deaths
+    MaxEigenVector=Re(MaxEigenVector)
+    DoublingTime=log(2)/r
+    
+    return(list("r"=r,"DoublingTime"=DoublingTime,"MaxEigenVector"=MaxEigenVector))
+    
+  })
+  
+}
 
 # ----------------------------------------------------------------------------
 # SetHospitalCapacity function:
@@ -236,11 +281,11 @@ SimSEIR = function(input){
   pModel=ParamStruct$pModel
   N=ParamStruct$N
   Tmax=input$Tmax
-  
+
   # Set initial conditions and time interval
-  E0=input$InitInf
-  S0 = N-E0
-  y0 = c(S=S0, E=E0, I1=0, I2=0, I3=0, R=0, D=0)
+  E00=input$InitInf
+  S0 = N-E00
+  y0 = c(S=S0, E0=E00,  E1=0, I0=0, I1=0, I2=0, I3=0, R=0, D=0)
   
   #get Ro and r values
   Ro=GetRo_SEIR(pModel,N)
@@ -251,7 +296,17 @@ SimSEIR = function(input){
   #run ODEs
   out.df=GetSpread_SEIR(pModel,Tmax,y0)
   
-  return(list("out.df"=out.df,"N"=N,"Ro"=Ro,"r"=r,"DoublingTime"=DoublingTime))
+  if(input$AllowSeason=="Yes"){
+    
+    Ro.Season=GetRo_SEIR_Season(pModel,N)
+    
+    return(list("out.df"=out.df,"N"=N,"Ro"=Ro,"Ro.Season"=Ro.Season,"r"=r,"DoublingTime"=DoublingTime))
+    
+  }else{
+    return(
+      list("out.df"=out.df,"N"=N,"Ro"=Ro,"r"=r,"DoublingTime"=DoublingTime))
+    
+  }
   
 }
 
@@ -271,16 +326,19 @@ SimSEIRintB = function(input){
   
   # start/end time of intervention
   Tint=input$Tint
-  Tend=input$Tend
+  Tend=pmin(input$Tend,input$Tmax)
   
   # intervention parameters
   pModelInt=pModel
+  pModelInt["be"]=pModelInt["be"]*(1-input$s0/100)
+  pModelInt["b0"]=pModelInt["b0"]*(1-input$s0/100)
   pModelInt["b1"]=pModelInt["b1"]*(1-input$s1/100)
   pModelInt["b2"]=pModelInt["b2"]*(1-input$s2/100)
   pModelInt["b3"]=pModelInt["b3"]*(1-input$s3/100)
   
   # intervention Ro and r values
   RoInt=GetRo_SEIR(pModelInt,N)
+  
   r.out=Getr_SEIR(pModelInt,N)
   rInt=r.out$r
   DoublingTimeInt=r.out$DoublingTime
@@ -288,9 +346,9 @@ SimSEIRintB = function(input){
   if(Tint==Tend){ # If the intervention starts and ends at the same time, just return baseline values
     
     # Set initial conditions and time interval
-    E0=input$InitInf
-    S0 = N-E0
-    y0 = c(S=S0, E=E0, I1=0, I2=0, I3=0, R=0, D=0)
+    E00=input$InitInf
+    S0 = N-E00
+    y0 = c(S=S0, E0=E00,  E1=0, I0=0, I1=0, I2=0, I3=0, R=0, D=0)
     
     #run ODEs
     outInt.df=GetSpread_SEIR(pModel,Tmax,y0)
@@ -301,27 +359,29 @@ SimSEIRintB = function(input){
     
     if(Tint>0){
       
-      E0=input$InitInf
-      S0 = N-E0
-      y0 = c(S=S0, E=E0, I1=0, I2=0, I3=0, R=0, D=0)
+      E00=input$InitInf
+      S0 = N-E00
+      y0 = c(S=S0, E0=E00,  E1=0, I0=0, I1=0, I2=0, I3=0, R=0, D=0)
       out.df=GetSpread_SEIR(pModel,Tint,y0)
       
       # Set initial conditions and time interval
       iInt=nrow(out.df)
       S0 = out.df[iInt,"S"]
-      E0 = out.df[iInt,"E"]
+      E00 = out.df[iInt,"E0"]
+      E10 = out.df[iInt,"E1"]
+      I00 = out.df[iInt,"I0"]
       I10 = out.df[iInt,"I1"]
       I20 = out.df[iInt,"I2"]
       I30 = out.df[iInt,"I3"]
       D0 = out.df[iInt,"D"]
       R0 = out.df[iInt,"R"]
-      y0 = c(S=S0, E=E0, I1=I10, I2=I20, I3=I30, R=R0, D=D0)
+      y0 = c(S=S0, E0=E00, E1=E10, I0=I00, I1=I10, I2=I20, I3=I30, R=R0, D=D0)
       
     }else{
       
-      E0=input$InitInf
-      S0 = N-E0
-      y0 = c(S=S0, E=E0, I1=0, I2=0, I3=0, R=0, D=0)
+      E00=input$InitInf
+      S0 = N-E00
+      y0 = c(S=S0, E0=E00,  E1=0, I0=0, I1=0, I2=0, I3=0, R=0, D=0)
       
     }
     
@@ -350,7 +410,9 @@ SimSEIRintB = function(input){
       
       if(input$RoundOne=="True"){
         S0 = round(outInt.df[iEnd,"S"])
-        E0 = round(outInt.df[iEnd,"E"])
+        E00 = round(outInt.df[iEnd,"E0"])
+        E10 = round(outInt.df[iEnd,"E1"])
+        I00 = round(outInt.df[iEnd,"I0"])
         I10 = round(outInt.df[iEnd,"I1"])
         I20 = round(outInt.df[iEnd,"I2"])
         I30 = round(outInt.df[iEnd,"I3"])
@@ -358,7 +420,9 @@ SimSEIRintB = function(input){
         R0 = round(outInt.df[iEnd,"R"])
       }else{
         S0 = outInt.df[iEnd,"S"]
-        E0 = outInt.df[iEnd,"E"]
+        E00 = outInt.df[iEnd,"E0"]
+        E10 = outInt.df[iEnd,"E1"]
+        I00 = outInt.df[iEnd,"I0"]
         I10 = outInt.df[iEnd,"I1"]
         I20 = outInt.df[iEnd,"I2"]
         I30 = outInt.df[iEnd,"I3"]
@@ -366,7 +430,7 @@ SimSEIRintB = function(input){
         R0 = outInt.df[iEnd,"R"]
       }
       
-      y0 = c(S=S0, E=E0, I1=I10, I2=I20, I3=I30, R=R0, D=D0)
+      y0 = c(S=S0, E0=E00, E1=E10, I0=I00, I1=I10, I2=I20, I3=I30, R=R0, D=D0)
       
       #run with parameters back to baseline
 
@@ -380,7 +444,17 @@ SimSEIRintB = function(input){
   }
   
   
-  return(list("out.df"=outInt.df,"N"=N,"Ro"=RoInt,"r"=rInt,"DoublingTime"=DoublingTimeInt))
+  if(input$AllowSeason=="Yes"){
+    
+    RoInt.Season=GetRo_SEIR_Season(pModelInt,N)
+    
+    return(list("out.df"=outInt.df,"N"=N,"Ro"=RoInt,"Ro.Season"=RoInt.Season,"r"=rInt,"DoublingTime"=DoublingTimeInt))
+    
+  }else{
+    
+    return(list("out.df"=outInt.df,"N"=N,"Ro"=RoInt,"r"=rInt,"DoublingTime"=DoublingTimeInt))
+    
+  }
   
 }
 
