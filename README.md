@@ -21,6 +21,10 @@ If you want to run the code to produce the same outputs as Shiny but without dea
 
 When trying out new model structures or plots, it is much easier to work with scripts instead of directly with the app. Once troubleshooting is done, it can be integrated with the app
 
+There are also some new new scripts to simulate the worsening of outcomes if healthcare capacity is overwhelmed
+* **runOverflow.R**
+* **code/functionsOverflow.R**
+
 There is also a Python notebook simulating the same model (.ipynb)
 
 You can use this page to report issues you find with the app
