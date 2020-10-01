@@ -1,4 +1,4 @@
-# SEIR_COVID19
+# international COVID19 reports
 
 The code for creating the R Shiny application https://alhill.shinyapps.io/COVID19seir/ is in the directory COVID19seir. This code is an SEIR model for COVID-19 infection, including different clinical trajectories of infection, interventions to reduce transmission, and comparisons to healthcare capacity. 
 
